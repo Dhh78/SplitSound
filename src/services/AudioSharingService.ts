@@ -5,15 +5,15 @@ import { AudioSharingCapabilities, AudioDevice, ConnectionStatus } from '../type
 let BleManager: any = null;
 let BleDevice: any = null;
 
-if (Platform.OS !== 'web') {
-  try {
-    const bleModule = require('react-native-ble-plx');
-    BleManager = bleModule.BleManager;
-    BleDevice = bleModule.Device;
-  } catch (error) {
-    console.warn('Bluetooth not available on this platform');
-  }
-}
+// if (Platform.OS !== 'web') {
+//   try {
+//     const bleModule = require('react-native-ble-plx');
+//     BleManager = bleModule.BleManager;
+//     BleDevice = bleModule.Device;
+//   } catch (error) {
+//     console.warn('Bluetooth not available on this platform');
+//   }
+// }
 
 class AudioSharingService {
   private bleManager: any = null;
