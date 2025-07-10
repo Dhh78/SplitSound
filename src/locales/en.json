@@ -1,0 +1,26 @@
+{
+  "app": {
+    "title": "SplitSound",
+    "shareAudio": "Share Audio",
+    "stopSharing": "Stop Sharing",
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "syncAdjustment": "Sync Adjustment",
+    "connectedDevices": "Connected Devices",
+    "noDevicesConnected": "No devices connected",
+    "bluetoothNotSupported": "Bluetooth dual audio not supported",
+    "usingWiFiFallback": "Using Wi-Fi fallback",
+    "bluetoothDualAudio": "Bluetooth Dual Audio",
+    "wifiSharing": "Wi-Fi Sharing",
+    "deviceSupportsAudioSharing": "Device supports Audio Sharing",
+    "deviceSupportsDualAudio": "Device supports Dual Audio",
+    "deviceSupportsAuracast": "Device supports Auracast",
+    "searchingForDevices": "Searching for devices...",
+    "permissionRequired": "Permission required",
+    "bluetoothPermissionRequired": "Bluetooth permission is required to share audio",
+    "audioPermissionRequired": "Audio permission is required to share audio",
+    "grant": "Grant",
+    "cancel": "Cancel"
+  }
+}
