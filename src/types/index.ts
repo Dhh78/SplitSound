@@ -1,28 +1,29 @@
-export interface AudioDevice {
+export interface CompanionDevice {
   id: string;
   name: string;
-  type: 'bluetooth' | 'wifi';
   connected: boolean;
+  isHost: boolean;
 }
 
-export interface AudioSharingCapabilities {
-  supportsAudioSharing: boolean; // Apple Audio Sharing
-  supportsDualAudio: boolean; // Samsung Dual Audio
-  supportsAuracast: boolean; // Bluetooth LE Audio / Auracast
-  bluetoothVersion?: string;
-  deviceModel?: string;
+export interface AudioSession {
+  sessionId: string;
+  hostDeviceId: string;
+  connectedDevices: CompanionDevice[];
+  isActive: boolean;
+  syncOffset: number;
 }
 
 export interface ConnectionStatus {
-  isSharing: boolean;
-  connectedDevices: AudioDevice[];
-  sharingMethod: 'bluetooth' | 'wifi' | null;
+  isHost: boolean;
+  isConnected: boolean;
+  sessionId: string | null;
+  connectedDevices: CompanionDevice[];
   syncOffset: number;
 }
 
 export interface AppState {
-  capabilities: AudioSharingCapabilities;
   connectionStatus: ConnectionStatus;
   isLoading: boolean;
   error: string | null;
+  mode: 'idle' | 'hosting' | 'joining';
 }

@@ -3,19 +3,45 @@ import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-nat
 import i18n from '../utils/i18n';
 
 interface AudioSharingButtonProps {
-  isSharing: boolean;
+  mode: 'host' | 'join' | 'stop';
   isLoading: boolean;
   onPress: () => void;
+  sessionCode?: string;
 }
 
 const AudioSharingButton: React.FC<AudioSharingButtonProps> = ({
-  isSharing,
+  mode,
   isLoading,
   onPress,
+  sessionCode,
 }) => {
+  const getButtonText = () => {
+    switch (mode) {
+      case 'host':
+        return i18n.t('app.shareAudio');
+      case 'join':
+        return i18n.t('app.joinAudio');
+      case 'stop':
+        return i18n.t('app.stopSharing');
+      default:
+        return i18n.t('app.shareAudio');
+    }
+  };
+
+  const getButtonStyle = () => {
+    switch (mode) {
+      case 'stop':
+        return styles.buttonStop;
+      case 'join':
+        return styles.buttonJoin;
+      default:
+        return styles.buttonHost;
+    }
+  };
+
   return (
     <TouchableOpacity
-      style={[styles.button, isSharing ? styles.buttonActive : styles.buttonInactive]}
+      style={[styles.button, getButtonStyle()]}
       onPress={onPress}
       disabled={isLoading}
     >
@@ -23,7 +49,10 @@ const AudioSharingButton: React.FC<AudioSharingButtonProps> = ({
         <ActivityIndicator color="#fff" />
       ) : (
         <Text style={styles.buttonText}>
-          {isSharing ? i18n.t('app.stopSharing') : i18n.t('app.shareAudio')}
+          {getButtonText()}
+          {sessionCode && mode === 'stop' && (
+            <Text style={styles.sessionCode}>{'\n'}Code: {sessionCode}</Text>
+          )}
         </Text>
       )}
     </TouchableOpacity>
@@ -39,17 +68,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 200,
     minHeight: 50,
+    marginVertical: 10,
   },
-  buttonActive: {
-    backgroundColor: '#ff4444',
-  },
-  buttonInactive: {
+  buttonHost: {
     backgroundColor: '#007AFF',
+  },
+  buttonJoin: {
+    backgroundColor: '#34C759',
+  },
+  buttonStop: {
+    backgroundColor: '#ff4444',
   },
   buttonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  sessionCode: {
+    fontSize: 14,
+    fontWeight: '400',
+    marginTop: 4,
   },
 });
 

@@ -1,7 +1,8 @@
 {
   "app": {
-    "title": "SplitSound",
+    "title": "SplitSound Companion",
     "shareAudio": "Share Audio",
+    "joinAudio": "Join Audio",
     "stopSharing": "Stop Sharing",
     "connecting": "Connecting...",
     "connected": "Connected",
@@ -9,18 +10,23 @@
     "syncAdjustment": "Sync Adjustment",
     "connectedDevices": "Connected Devices",
     "noDevicesConnected": "No devices connected",
-    "bluetoothNotSupported": "Bluetooth dual audio not supported",
-    "usingWiFiFallback": "Using Wi-Fi fallback",
-    "bluetoothDualAudio": "Bluetooth Dual Audio",
     "wifiSharing": "Wi-Fi Sharing",
-    "deviceSupportsAudioSharing": "Device supports Audio Sharing",
-    "deviceSupportsDualAudio": "Device supports Dual Audio",
-    "deviceSupportsAuracast": "Device supports Auracast",
     "searchingForDevices": "Searching for devices...",
     "permissionRequired": "Permission required",
-    "bluetoothPermissionRequired": "Bluetooth permission is required to share audio",
     "audioPermissionRequired": "Audio permission is required to share audio",
+    "cameraPermissionRequired": "Camera permission is required to scan QR codes",
     "grant": "Grant",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "sessionCode": "Session Code",
+    "scanQRCode": "Scan QR Code",
+    "generateQRCode": "Show QR Code",
+    "waitingForConnection": "Waiting for connection...",
+    "scanToJoin": "Scan the QR code to join audio session",
+    "shareInstructions": "Other device can scan this QR code to join",
+    "joinInstructions": "Point camera at QR code to join audio session",
+    "audioSharing": "Audio Sharing",
+    "companionDevice": "Companion Device",
+    "host": "Host",
+    "client": "Client"
   }
 }

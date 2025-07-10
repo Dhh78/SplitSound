@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "SplitSound",
-    "slug": "SplitSound",
+    "name": "SplitSound Companion",
+    "slug": "splitsound-companion",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -13,7 +13,13 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dhh78.splitsound-companion",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "This app needs access to camera to scan QR codes for audio sharing.",
+        "NSMicrophoneUsageDescription": "This app needs access to microphone to capture and share audio."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,11 +27,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.dhh78.SplitSound"
+      "package": "com.dhh78.splitsoundcompanion",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "plugins": [
+      "@config-plugins/react-native-webrtc"
+    ],
     "extra": {
       "eas": {
         "projectId": "d8249d67-c6af-472b-96ef-3516a4aed3a4"

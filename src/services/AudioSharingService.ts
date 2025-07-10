@@ -1,185 +1,372 @@
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
-import { AudioSharingCapabilities, AudioDevice, ConnectionStatus } from '../types';
+import { CompanionDevice, AudioSession, ConnectionStatus } from '../types';
 
-let BleManager: any = null;
-let BleDevice: any = null;
+declare global {
+  interface Window {
+    RTCPeerConnection: any;
+    webkitRTCPeerConnection: any;
+    mozRTCPeerConnection: any;
+  }
+}
 
-// if (Platform.OS !== 'web') {
-//   try {
-//     const bleModule = require('react-native-ble-plx');
-//     BleManager = bleModule.BleManager;
-//     BleDevice = bleModule.Device;
-//   } catch (error) {
-//     console.warn('Bluetooth not available on this platform');
-//   }
-// }
-
-class AudioSharingService {
-  private bleManager: any = null;
-  private connectedDevices: AudioDevice[] = [];
-  private isSharing: boolean = false;
-  private sharingMethod: 'bluetooth' | 'wifi' | null = null;
+class SplitSoundCompanionService {
+  private currentSession: AudioSession | null = null;
+  private isHost: boolean = false;
+  private isConnected: boolean = false;
+  private connectedDevices: CompanionDevice[] = [];
+  private syncOffset: number = 0;
+  private peerConnection: any = null;
+  private audioStream: MediaStream | null = null;
+  private signalingSocket: WebSocket | null = null;
+  private localAudio: HTMLAudioElement | null = null;
 
   constructor() {
-    if (Platform.OS !== 'web' && BleManager) {
-      this.bleManager = new BleManager();
-    }
+    this.initializeWebRTC();
   }
 
-  async detectCapabilities(): Promise<AudioSharingCapabilities> {
-    const capabilities: AudioSharingCapabilities = {
-      supportsAudioSharing: false,
-      supportsDualAudio: false,
-      supportsAuracast: false,
-      deviceModel: Device.modelName || 'Unknown',
-    };
-
-    if (Platform.OS === 'ios') {
-      const systemVersion = parseFloat(Device.osVersion || '0');
-      capabilities.supportsAudioSharing = systemVersion >= 13.0;
-    } else if (Platform.OS === 'android') {
-      const systemVersion = parseInt(Device.osVersion || '0');
-      const deviceBrand = Device.brand?.toLowerCase() || '';
-      
-      if (deviceBrand.includes('samsung') && systemVersion >= 26) {
-        capabilities.supportsDualAudio = true;
-      }
-      
-      if (systemVersion >= 35) { // Android 15 is API level 35
-        capabilities.supportsAuracast = true;
-      }
-    }
-
-    return capabilities;
-  }
-
-  async requestPermissions(): Promise<boolean> {
+  private async initializeWebRTC(): Promise<void> {
     try {
-      if (Platform.OS === 'web' || !this.bleManager) {
-        return false;
+      if (Platform.OS === 'web') {
+        const RTCPeerConnection = window.RTCPeerConnection || 
+                                 window.webkitRTCPeerConnection || 
+                                 window.mozRTCPeerConnection;
+        
+        if (RTCPeerConnection) {
+          console.log('WebRTC supported');
+        } else {
+          console.warn('WebRTC not supported in this browser');
+        }
+      } else {
+        const { RTCPeerConnection } = require('react-native-webrtc');
+        console.log('React Native WebRTC initialized');
       }
-      
-      const bluetoothState = await this.bleManager.state();
-      if (bluetoothState !== 'PoweredOn') {
-        return false;
-      }
-      return true;
     } catch (error) {
-      console.error('Permission request failed:', error);
+      console.warn('WebRTC initialization failed:', error);
+    }
+  }
+
+  async requestAudioPermissions(): Promise<boolean> {
+    try {
+      if (Platform.OS === 'web') {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+            sampleRate: 44100
+          } 
+        });
+        this.audioStream = stream;
+        return true;
+      } else {
+        const { mediaDevices } = require('react-native-webrtc');
+        const stream = await mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+          video: false
+        });
+        this.audioStream = stream;
+        return true;
+      }
+    } catch (error) {
+      console.error('Audio permission request failed:', error);
       return false;
     }
   }
 
-  async startBluetoothSharing(): Promise<boolean> {
+  generateSessionCode(): string {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+  }
+
+  async startHosting(): Promise<{ success: boolean; sessionCode?: string; error?: string }> {
     try {
-      if (Platform.OS === 'web' || !this.bleManager) {
-        console.log('Bluetooth not available on web platform');
-        return false;
-      }
-
-      const hasPermissions = await this.requestPermissions();
+      const hasPermissions = await this.requestAudioPermissions();
       if (!hasPermissions) {
-        return false;
+        return { success: false, error: 'Audio permissions required' };
       }
 
-      this.bleManager.startDeviceScan(null, null, (error: any, device: any) => {
-        if (error) {
-          console.error('Bluetooth scan error:', error);
-          return;
-        }
+      const sessionCode = this.generateSessionCode();
+      const deviceId = Device.modelName || 'Unknown Device';
+      
+      this.currentSession = {
+        sessionId: sessionCode,
+        hostDeviceId: deviceId,
+        connectedDevices: [{
+          id: deviceId,
+          name: deviceId,
+          connected: true,
+          isHost: true
+        }],
+        isActive: true,
+        syncOffset: 0
+      };
 
-        if (device && device.name) {
-          const audioDevice: AudioDevice = {
-            id: device.id,
-            name: device.name,
-            type: 'bluetooth',
-            connected: false,
-          };
-          
-          const existingIndex = this.connectedDevices.findIndex(d => d.id === device.id);
-          if (existingIndex === -1) {
-            this.connectedDevices.push(audioDevice);
-          }
-        }
+      this.isHost = true;
+      this.isConnected = true;
+      
+      await this.setupPeerConnection();
+      await this.startSignalingServer(sessionCode);
+
+      console.log(`Started hosting session: ${sessionCode}`);
+      return { success: true, sessionCode };
+    } catch (error) {
+      console.error('Failed to start hosting:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async joinSession(sessionCode: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const deviceId = Device.modelName || 'Unknown Device';
+      
+      this.currentSession = {
+        sessionId: sessionCode,
+        hostDeviceId: 'Remote Host',
+        connectedDevices: [{
+          id: deviceId,
+          name: deviceId,
+          connected: true,
+          isHost: false
+        }],
+        isActive: true,
+        syncOffset: 0
+      };
+      
+      await this.setupPeerConnection();
+      await this.connectToHost(sessionCode, deviceId);
+      
+      this.isHost = false;
+      this.isConnected = true;
+      
+      console.log(`Joined session: ${sessionCode}`);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to join session:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  private async setupPeerConnection(): Promise<void> {
+    try {
+      let RTCPeerConnection;
+      
+      if (Platform.OS === 'web') {
+        RTCPeerConnection = window.RTCPeerConnection || 
+                           window.webkitRTCPeerConnection || 
+                           window.mozRTCPeerConnection;
+      } else {
+        const webrtc = require('react-native-webrtc');
+        RTCPeerConnection = webrtc.RTCPeerConnection;
+      }
+
+      this.peerConnection = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
       });
 
-      this.isSharing = true;
-      this.sharingMethod = 'bluetooth';
-      return true;
-    } catch (error) {
-      console.error('Bluetooth sharing failed:', error);
-      return false;
-    }
-  }
-
-  async startWiFiSharing(): Promise<boolean> {
-    try {
-      console.log('Starting Wi-Fi audio sharing...');
-      
-      this.isSharing = true;
-      this.sharingMethod = 'wifi';
-      return true;
-    } catch (error) {
-      console.error('Wi-Fi sharing failed:', error);
-      return false;
-    }
-  }
-
-  async stopSharing(): Promise<void> {
-    try {
-      if (this.sharingMethod === 'bluetooth' && this.bleManager) {
-        this.bleManager.stopDeviceScan();
-        for (const device of this.connectedDevices) {
-          if (device.type === 'bluetooth' && device.connected) {
-          }
-        }
-      } else if (this.sharingMethod === 'wifi') {
-        console.log('Stopping Wi-Fi sharing...');
+      if (this.isHost && this.audioStream) {
+        this.audioStream.getTracks().forEach(track => {
+          this.peerConnection.addTrack(track, this.audioStream);
+        });
       }
 
-      this.isSharing = false;
-      this.sharingMethod = null;
-      this.connectedDevices = [];
+      this.peerConnection.ontrack = (event: any) => {
+        console.log('Received remote audio stream');
+        if (!this.isHost) {
+          this.playRemoteAudio(event.streams[0]);
+        }
+      };
+
+      this.peerConnection.onicecandidate = (event: any) => {
+        if (event.candidate && this.signalingSocket) {
+          this.signalingSocket.send(JSON.stringify({
+            type: 'ice-candidate',
+            candidate: event.candidate
+          }));
+        }
+      };
+
     } catch (error) {
-      console.error('Stop sharing failed:', error);
+      console.error('Failed to setup peer connection:', error);
+    }
+  }
+
+  private playRemoteAudio(stream: MediaStream): void {
+    try {
+      if (Platform.OS === 'web') {
+        if (!this.localAudio) {
+          this.localAudio = new Audio();
+          this.localAudio.autoplay = true;
+        }
+        this.localAudio.srcObject = stream;
+        this.localAudio.play().catch(e => console.error('Audio play failed:', e));
+      } else {
+        console.log('Playing remote audio stream on React Native');
+      }
+    } catch (error) {
+      console.error('Failed to play remote audio:', error);
+    }
+  }
+
+  private async startSignalingServer(sessionCode: string): Promise<void> {
+    try {
+      console.log(`Starting signaling for session: ${sessionCode}`);
+      
+      this.signalingSocket = new WebSocket('wss://echo.websocket.org');
+      
+      this.signalingSocket.onopen = () => {
+        console.log('Signaling server connected');
+        this.signalingSocket?.send(JSON.stringify({
+          type: 'host',
+          sessionCode: sessionCode
+        }));
+      };
+
+      this.signalingSocket.onmessage = async (event) => {
+        const message = JSON.parse(event.data);
+        await this.handleSignalingMessage(message);
+      };
+
+      this.signalingSocket.onerror = (error) => {
+        console.error('Signaling error:', error);
+      };
+
+    } catch (error) {
+      console.error('Failed to start signaling server:', error);
+    }
+  }
+
+  private async connectToHost(sessionCode: string, deviceId: string): Promise<void> {
+    try {
+      console.log(`Connecting to host with session: ${sessionCode}`);
+      
+      this.signalingSocket = new WebSocket('wss://echo.websocket.org');
+      
+      this.signalingSocket.onopen = () => {
+        console.log('Connected to signaling server');
+        this.signalingSocket?.send(JSON.stringify({
+          type: 'join',
+          sessionCode: sessionCode,
+          deviceId: deviceId
+        }));
+      };
+
+      this.signalingSocket.onmessage = async (event) => {
+        const message = JSON.parse(event.data);
+        await this.handleSignalingMessage(message);
+      };
+
+      this.signalingSocket.onerror = (error) => {
+        console.error('Signaling error:', error);
+      };
+
+    } catch (error) {
+      console.error('Failed to connect to host:', error);
+    }
+  }
+
+  private async handleSignalingMessage(message: any): Promise<void> {
+    try {
+      switch (message.type) {
+        case 'offer':
+          if (!this.isHost) {
+            await this.peerConnection.setRemoteDescription(message.offer);
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+            this.signalingSocket?.send(JSON.stringify({
+              type: 'answer',
+              answer: answer
+            }));
+          }
+          break;
+
+        case 'answer':
+          if (this.isHost) {
+            await this.peerConnection.setRemoteDescription(message.answer);
+          }
+          break;
+
+        case 'ice-candidate':
+          await this.peerConnection.addIceCandidate(message.candidate);
+          break;
+
+        case 'join':
+          if (this.isHost) {
+            const offer = await this.peerConnection.createOffer();
+            await this.peerConnection.setLocalDescription(offer);
+            this.signalingSocket?.send(JSON.stringify({
+              type: 'offer',
+              offer: offer
+            }));
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling signaling message:', error);
+    }
+  }
+
+  async stopSession(): Promise<void> {
+    try {
+      if (this.peerConnection) {
+        this.peerConnection.close();
+        this.peerConnection = null;
+      }
+
+      if (this.audioStream) {
+        this.audioStream.getTracks().forEach(track => track.stop());
+        this.audioStream = null;
+      }
+
+      if (this.signalingSocket) {
+        this.signalingSocket.close();
+        this.signalingSocket = null;
+      }
+
+      if (this.localAudio) {
+        this.localAudio.pause();
+        this.localAudio.srcObject = null;
+        this.localAudio = null;
+      }
+
+      this.currentSession = null;
+      this.isHost = false;
+      this.isConnected = false;
+      this.connectedDevices = [];
+      
+      console.log('Session stopped');
+    } catch (error) {
+      console.error('Failed to stop session:', error);
     }
   }
 
   getConnectionStatus(): ConnectionStatus {
     return {
-      isSharing: this.isSharing,
+      isHost: this.isHost,
+      isConnected: this.isConnected,
+      sessionId: this.currentSession?.sessionId || null,
       connectedDevices: this.connectedDevices,
-      sharingMethod: this.sharingMethod,
-      syncOffset: 0, // Default sync offset
+      syncOffset: this.syncOffset,
     };
   }
 
-  async connectToDevice(deviceId: string): Promise<boolean> {
-    try {
-      const device = this.connectedDevices.find(d => d.id === deviceId);
-      if (!device) {
-        return false;
-      }
-
-      if (device.type === 'bluetooth' && this.bleManager) {
-        const bleDevice = await this.bleManager.connectToDevice(deviceId);
-        await bleDevice.discoverAllServicesAndCharacteristics();
-        
-        device.connected = true;
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Device connection failed:', error);
-      return false;
+  setSyncOffset(offset: number): void {
+    this.syncOffset = offset;
+    if (this.localAudio && Platform.OS === 'web') {
+      this.localAudio.currentTime += offset / 1000;
     }
+    console.log(`Setting sync offset to ${offset}ms`);
   }
 
-  setSyncOffset(offset: number): void {
-    console.log(`Setting sync offset to ${offset}ms`);
+  getCurrentSession(): AudioSession | null {
+    return this.currentSession;
   }
 }
 
-export default new AudioSharingService();
+export default new SplitSoundCompanionService();

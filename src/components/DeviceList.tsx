@@ -1,15 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { AudioDevice } from '../types';
+import { CompanionDevice } from '../types';
 import i18n from '../utils/i18n';
 
 interface DeviceListProps {
-  devices: AudioDevice[];
+  devices: CompanionDevice[];
   onDevicePress: (deviceId: string) => void;
 }
 
 const DeviceList: React.FC<DeviceListProps> = ({ devices, onDevicePress }) => {
-  const renderDevice = ({ item }: { item: AudioDevice }) => (
+  const renderDevice = ({ item }: { item: CompanionDevice }) => (
     <TouchableOpacity
       style={[styles.deviceItem, item.connected ? styles.deviceConnected : styles.deviceDisconnected]}
       onPress={() => onDevicePress(item.id)}
@@ -17,7 +17,7 @@ const DeviceList: React.FC<DeviceListProps> = ({ devices, onDevicePress }) => {
       <View style={styles.deviceInfo}>
         <Text style={styles.deviceName}>{item.name}</Text>
         <Text style={styles.deviceType}>
-          {item.type === 'bluetooth' ? i18n.t('app.bluetoothDualAudio') : i18n.t('app.wifiSharing')}
+          {item.isHost ? i18n.t('app.host') : i18n.t('app.client')} - {i18n.t('app.companionDevice')}
         </Text>
       </View>
       <View style={[styles.statusIndicator, item.connected ? styles.statusConnected : styles.statusDisconnected]} />

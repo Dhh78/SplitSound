@@ -1,216 +1,266 @@
 import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Alert, SafeAreaView, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, ScrollView, Alert } from 'react-native';
 import AudioSharingButton from './src/components/AudioSharingButton';
 import DeviceList from './src/components/DeviceList';
 import SyncAdjustment from './src/components/SyncAdjustment';
+import QRCodeGenerator from './src/components/QRCodeGenerator';
+import QRCodeScanner from './src/components/QRCodeScanner';
 import AudioSharingService from './src/services/AudioSharingService';
-import { AppState, AudioSharingCapabilities, ConnectionStatus } from './src/types';
+import { AppState, ConnectionStatus } from './src/types';
 import i18n from './src/utils/i18n';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>({
-    capabilities: {
-      supportsAudioSharing: false,
-      supportsDualAudio: false,
-      supportsAuracast: false,
-    },
     connectionStatus: {
-      isSharing: false,
+      isHost: false,
+      isConnected: false,
+      sessionId: null,
       connectedDevices: [],
-      sharingMethod: null,
       syncOffset: 0,
     },
     isLoading: false,
     error: null,
+    mode: 'idle',
   });
 
+  const [showQRScanner, setShowQRScanner] = useState(false);
+
   useEffect(() => {
-    initializeApp();
+    updateConnectionStatus();
   }, []);
 
-  const initializeApp = async () => {
-    try {
-      setAppState(prev => ({ ...prev, isLoading: true }));
-      
-      const capabilities = await AudioSharingService.detectCapabilities();
-      const connectionStatus = AudioSharingService.getConnectionStatus();
-      
-      setAppState(prev => ({
-        ...prev,
-        capabilities,
-        connectionStatus,
-        isLoading: false,
-      }));
-    } catch (error) {
-      setAppState(prev => ({
-        ...prev,
-        error: 'Failed to initialize app',
-        isLoading: false,
-      }));
-    }
+  const updateConnectionStatus = () => {
+    const status = AudioSharingService.getConnectionStatus();
+    setAppState(prev => ({
+      ...prev,
+      connectionStatus: status,
+    }));
   };
 
   const handleShareAudio = async () => {
+    setAppState(prev => ({ ...prev, isLoading: true, error: null }));
+    
     try {
-      setAppState(prev => ({ ...prev, isLoading: true }));
-
-      if (appState.connectionStatus.isSharing) {
-        await AudioSharingService.stopSharing();
+      const result = await AudioSharingService.startHosting();
+      if (result.success) {
+        setAppState(prev => ({
+          ...prev,
+          mode: 'hosting',
+          isLoading: false,
+        }));
+        updateConnectionStatus();
       } else {
-        let success = false;
-        
-        if (appState.capabilities.supportsAudioSharing || 
-            appState.capabilities.supportsDualAudio || 
-            appState.capabilities.supportsAuracast) {
-          success = await AudioSharingService.startBluetoothSharing();
-        }
-        
-        if (!success) {
-          success = await AudioSharingService.startWiFiSharing();
-        }
-
-        if (!success) {
-          Alert.alert(
-            i18n.t('app.permissionRequired'),
-            i18n.t('app.bluetoothPermissionRequired')
-          );
-        }
+        setAppState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: result.error || 'Failed to start hosting',
+        }));
       }
-
-      const connectionStatus = AudioSharingService.getConnectionStatus();
-      setAppState(prev => ({
-        ...prev,
-        connectionStatus,
-        isLoading: false,
-      }));
     } catch (error) {
       setAppState(prev => ({
         ...prev,
-        error: 'Failed to toggle audio sharing',
         isLoading: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
       }));
     }
   };
 
-  const handleDevicePress = async (deviceId: string) => {
+  const handleJoinAudio = () => {
+    setShowQRScanner(true);
+  };
+
+  const handleQRScanSuccess = async (sessionCode: string) => {
+    setShowQRScanner(false);
+    setAppState(prev => ({ ...prev, isLoading: true, error: null }));
+    
     try {
-      const success = await AudioSharingService.connectToDevice(deviceId);
-      if (success) {
-        const connectionStatus = AudioSharingService.getConnectionStatus();
-        setAppState(prev => ({ ...prev, connectionStatus }));
+      const result = await AudioSharingService.joinSession(sessionCode);
+      if (result.success) {
+        setAppState(prev => ({
+          ...prev,
+          mode: 'joining',
+          isLoading: false,
+        }));
+        updateConnectionStatus();
+      } else {
+        setAppState(prev => ({
+          ...prev,
+          isLoading: false,
+          error: result.error || 'Failed to join session',
+        }));
       }
     } catch (error) {
-      console.error('Device connection failed:', error);
+      setAppState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }));
     }
+  };
+
+  const handleQRScanCancel = () => {
+    setShowQRScanner(false);
+  };
+
+  const handleStopSharing = async () => {
+    setAppState(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      await AudioSharingService.stopSession();
+      setAppState(prev => ({
+        ...prev,
+        mode: 'idle',
+        isLoading: false,
+        error: null,
+      }));
+      updateConnectionStatus();
+    } catch (error) {
+      setAppState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to stop session',
+      }));
+    }
+  };
+
+  const handleDevicePress = (deviceId: string) => {
+    console.log('Device pressed:', deviceId);
   };
 
   const handleSyncChange = (offset: number) => {
     AudioSharingService.setSyncOffset(offset);
-    setAppState(prev => ({
-      ...prev,
-      connectionStatus: {
-        ...prev.connectionStatus,
-        syncOffset: offset,
-      },
-    }));
+    updateConnectionStatus();
   };
 
-  const getCapabilityText = () => {
-    const { capabilities } = appState;
-    if (capabilities.supportsAudioSharing) {
-      return i18n.t('app.deviceSupportsAudioSharing');
-    } else if (capabilities.supportsDualAudio) {
-      return i18n.t('app.deviceSupportsDualAudio');
-    } else if (capabilities.supportsAuracast) {
-      return i18n.t('app.deviceSupportsAuracast');
-    } else {
-      return i18n.t('app.bluetoothNotSupported');
-    }
-  };
+  if (showQRScanner) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar style="auto" />
+        <QRCodeScanner
+          onScanSuccess={handleQRScanSuccess}
+          onCancel={handleQRScanCancel}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="auto" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>{i18n.t('app.title')}</Text>
-        
-        <Text style={styles.capabilityText}>{getCapabilityText()}</Text>
-        
-        {!appState.capabilities.supportsAudioSharing && 
-         !appState.capabilities.supportsDualAudio && 
-         !appState.capabilities.supportsAuracast && (
-          <Text style={styles.fallbackText}>{i18n.t('app.usingWiFiFallback')}</Text>
-        )}
+        <View style={styles.header}>
+          <Text style={styles.title}>{i18n.t('app.title')}</Text>
+        </View>
 
-        <AudioSharingButton
-          isSharing={appState.connectionStatus.isSharing}
-          isLoading={appState.isLoading}
-          onPress={handleShareAudio}
-        />
-
-        {appState.connectionStatus.isSharing && (
-          <>
-            <DeviceList
-              devices={appState.connectionStatus.connectedDevices}
-              onDevicePress={handleDevicePress}
-            />
-            
-            {appState.connectionStatus.sharingMethod === 'wifi' && (
-              <SyncAdjustment
-                syncOffset={appState.connectionStatus.syncOffset}
-                onSyncChange={handleSyncChange}
+        <View style={styles.content}>
+          {appState.mode === 'idle' && (
+            <View style={styles.buttonContainer}>
+              <AudioSharingButton
+                mode="host"
+                isLoading={appState.isLoading}
+                onPress={handleShareAudio}
               />
-            )}
-          </>
-        )}
+              <AudioSharingButton
+                mode="join"
+                isLoading={appState.isLoading}
+                onPress={handleJoinAudio}
+              />
+            </View>
+          )}
 
-        {appState.error && (
-          <Text style={styles.errorText}>{appState.error}</Text>
-        )}
+          {appState.mode === 'hosting' && appState.connectionStatus.sessionId && (
+            <View style={styles.hostingContainer}>
+              <QRCodeGenerator sessionCode={appState.connectionStatus.sessionId} />
+              <AudioSharingButton
+                mode="stop"
+                isLoading={appState.isLoading}
+                onPress={handleStopSharing}
+                sessionCode={appState.connectionStatus.sessionId}
+              />
+            </View>
+          )}
+
+          {appState.mode === 'joining' && (
+            <View style={styles.joiningContainer}>
+              <Text style={styles.statusText}>{i18n.t('app.connected')}</Text>
+              <AudioSharingButton
+                mode="stop"
+                isLoading={appState.isLoading}
+                onPress={handleStopSharing}
+              />
+            </View>
+          )}
+
+          {appState.error && (
+            <Text style={styles.errorText}>{appState.error}</Text>
+          )}
+
+          <DeviceList
+            devices={appState.connectionStatus.connectedDevices}
+            onDevicePress={handleDevicePress}
+          />
+
+          {appState.connectionStatus.isConnected && (
+            <SyncAdjustment
+              syncOffset={appState.connectionStatus.syncOffset}
+              onSyncChange={handleSyncChange}
+            />
+          )}
+        </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f5f5f5',
   },
   scrollContent: {
     flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     padding: 20,
-    paddingTop: 60,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 30,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
     color: '#333',
-    textAlign: 'center',
   },
-  capabilityText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 10,
-    paddingHorizontal: 20,
+  content: {
+    flex: 1,
+    alignItems: 'center',
   },
-  fallbackText: {
-    fontSize: 14,
-    color: '#ff6600',
-    textAlign: 'center',
+  buttonContainer: {
+    width: '100%',
+    alignItems: 'center',
     marginBottom: 30,
-    fontStyle: 'italic',
+  },
+  hostingContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  joiningContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  statusText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#34C759',
+    marginBottom: 20,
   },
   errorText: {
-    fontSize: 14,
     color: '#ff4444',
+    fontSize: 16,
     textAlign: 'center',
-    marginTop: 20,
+    marginVertical: 10,
     paddingHorizontal: 20,
   },
 });
