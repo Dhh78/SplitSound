@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Slider from '@react-native-community/slider';
+// import Slider from '@react-native-community/slider'; // Temporarily removed for build testing
 import i18n from '../utils/i18n';
 
 interface SyncAdjustmentProps {
@@ -21,7 +21,7 @@ const SyncAdjustment: React.FC<SyncAdjustmentProps> = ({ syncOffset, onSyncChang
       <Text style={styles.title}>{i18n.t('app.syncAdjustment')}</Text>
       <View style={styles.sliderContainer}>
         <Text style={styles.label}>-500ms</Text>
-        <Slider
+        {/* <Slider
           style={styles.slider}
           minimumValue={-500}
           maximumValue={500}
@@ -30,7 +30,8 @@ const SyncAdjustment: React.FC<SyncAdjustmentProps> = ({ syncOffset, onSyncChang
           step={10}
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#ddd"
-        />
+        /> */}
+        <Text style={styles.label}>Slider temporarily disabled for build testing</Text>
         <Text style={styles.label}>+500ms</Text>
       </View>
       <Text style={styles.currentValue}>
