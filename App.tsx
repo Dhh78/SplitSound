@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Alert, SafeAreaView, ScrollView } from 'react-native';
+import { StyleSheet, Text, View, Alert, SafeAreaView, ScrollView, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AudioSharingButton from './src/components/AudioSharingButton';
 import DeviceList from './src/components/DeviceList';
 import SyncAdjustment from './src/components/SyncAdjustment';
 import QRCodeGenerator from './src/components/QRCodeGenerator';
 import QRCodeScanner from './src/components/QRCodeScanner';
+import DebugPanel from './src/components/DebugPanel';
 import AudioSharingService from './src/services/AudioSharingService';
 import { AppState, ConnectionStatus } from './src/types';
 import i18n from './src/utils/i18n';
@@ -25,6 +26,7 @@ export default function App() {
   });
 
   const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   useEffect(() => {
     updateConnectionStatus();
@@ -151,6 +153,12 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <Text style={styles.title}>{i18n.t('app.title')}</Text>
+          <TouchableOpacity 
+            style={styles.debugButton}
+            onPress={() => setShowDebugPanel(true)}
+          >
+            <Text style={styles.debugButtonText}>🔧</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
@@ -209,6 +217,11 @@ export default function App() {
           )}
         </View>
       </ScrollView>
+      
+      <DebugPanel 
+        visible={showDebugPanel}
+        onClose={() => setShowDebugPanel(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -223,8 +236,19 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 30,
+    position: 'relative',
+  },
+  debugButton: {
+    position: 'absolute',
+    right: 0,
+    padding: 10,
+  },
+  debugButtonText: {
+    fontSize: 20,
   },
   title: {
     fontSize: 28,

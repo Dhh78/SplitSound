@@ -50,30 +50,30 @@ class SplitSoundCompanionService {
     try {
       if (Platform.OS === 'web') {
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            sampleRate: 44100
-          } 
+          audio: true
         });
         this.audioStream = stream;
+        console.log('✅ Audio permissions granted (Web)');
         return true;
       } else {
         const { mediaDevices } = require('react-native-webrtc');
         const stream = await mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
+          audio: true,
           video: false
         });
         this.audioStream = stream;
+        console.log('✅ Audio permissions granted (Mobile)');
         return true;
       }
     } catch (error) {
-      console.error('Audio permission request failed:', error);
+      console.error('❌ Audio permission request failed:', error);
+      if (error instanceof Error) {
+        if (error.name === 'NotFoundError') {
+          console.error('No audio input device found. Please check microphone connection.');
+        } else if (error.name === 'NotAllowedError') {
+          console.error('Audio permission denied by user. Please grant microphone access.');
+        }
+      }
       return false;
     }
   }
@@ -177,18 +177,49 @@ class SplitSoundCompanionService {
       }
 
       this.peerConnection.ontrack = (event: any) => {
-        console.log('Received remote audio stream');
+        console.log('🎵 Received remote audio stream');
         if (!this.isHost) {
           this.playRemoteAudio(event.streams[0]);
         }
+        const deviceConnectedMessage = {
+          type: 'device-connected',
+          deviceId: Device.modelName || 'Connected Device',
+          isHost: this.isHost,
+          sessionCode: this.currentSession?.sessionId,
+          timestamp: Date.now()
+        };
+        this.signalingSocket?.send(JSON.stringify(deviceConnectedMessage));
+        console.log('📤 Sent device connected notification:', deviceConnectedMessage);
       };
 
       this.peerConnection.onicecandidate = (event: any) => {
         if (event.candidate && this.signalingSocket) {
-          this.signalingSocket.send(JSON.stringify({
+          const candidateMessage = {
             type: 'ice-candidate',
-            candidate: event.candidate
-          }));
+            candidate: event.candidate,
+            sessionCode: this.currentSession?.sessionId,
+            deviceId: Device.modelName || 'Unknown Device',
+            timestamp: Date.now()
+          };
+          this.signalingSocket.send(JSON.stringify(candidateMessage));
+          console.log('🧊 Sent ICE candidate:', candidateMessage);
+        }
+      };
+
+      this.peerConnection.onconnectionstatechange = () => {
+        const state = this.peerConnection.connectionState;
+        console.log(`🔗 Connection state changed: ${state}`);
+        
+        if (state === 'connected') {
+          this.isConnected = true;
+          console.log('✅ WebRTC connection established');
+          this.notifyConnectionStateChange('connected');
+        } else if (state === 'disconnected' || state === 'failed') {
+          this.isConnected = false;
+          console.log('❌ WebRTC connection lost');
+          this.notifyConnectionStateChange('disconnected');
+        } else if (state === 'connecting') {
+          console.log('🔄 WebRTC connecting...');
         }
       };
 
@@ -216,99 +247,213 @@ class SplitSoundCompanionService {
 
   private async startSignalingServer(sessionCode: string): Promise<void> {
     try {
-      console.log(`Starting signaling for session: ${sessionCode}`);
+      console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
-      this.signalingSocket = new WebSocket('wss://echo.websocket.org');
+      this.signalingSocket = new WebSocket(`wss://socketsbay.com/wss/v2/1/${sessionCode}/`);
       
       this.signalingSocket.onopen = () => {
-        console.log('Signaling server connected');
-        this.signalingSocket?.send(JSON.stringify({
+        console.log('🔗 Signaling server connected as host');
+        const hostMessage = {
           type: 'host',
-          sessionCode: sessionCode
-        }));
+          sessionCode: sessionCode,
+          deviceId: Device.modelName || 'Host Device',
+          timestamp: Date.now()
+        };
+        this.signalingSocket?.send(JSON.stringify(hostMessage));
+        console.log('📤 Sent host registration:', hostMessage);
       };
 
       this.signalingSocket.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        await this.handleSignalingMessage(message);
+        try {
+          const message = JSON.parse(event.data);
+          console.log('📥 Host received message:', message);
+          if (message.sessionCode === sessionCode || !message.sessionCode) {
+            await this.handleSignalingMessage(message);
+          } else {
+            console.log('🚫 Ignoring message for different session:', message.sessionCode);
+          }
+        } catch (error) {
+          console.error('❌ Failed to parse signaling message:', error);
+        }
       };
 
       this.signalingSocket.onerror = (error) => {
-        console.error('Signaling error:', error);
+        console.error('❌ Signaling error:', error);
+      };
+
+      this.signalingSocket.onclose = (event) => {
+        console.log('🔌 Signaling connection closed:', event.code, event.reason);
       };
 
     } catch (error) {
-      console.error('Failed to start signaling server:', error);
+      console.error('❌ Failed to start signaling server:', error);
     }
   }
 
   private async connectToHost(sessionCode: string, deviceId: string): Promise<void> {
     try {
-      console.log(`Connecting to host with session: ${sessionCode}`);
+      console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
-      this.signalingSocket = new WebSocket('wss://echo.websocket.org');
+      this.signalingSocket = new WebSocket(`wss://socketsbay.com/wss/v2/1/${sessionCode}/`);
       
       this.signalingSocket.onopen = () => {
-        console.log('Connected to signaling server');
-        this.signalingSocket?.send(JSON.stringify({
+        console.log('🔗 Connected to signaling server as client');
+        const joinMessage = {
           type: 'join',
           sessionCode: sessionCode,
-          deviceId: deviceId
-        }));
+          deviceId: deviceId,
+          timestamp: Date.now()
+        };
+        this.signalingSocket?.send(JSON.stringify(joinMessage));
+        console.log('📤 Sent join request:', joinMessage);
       };
 
       this.signalingSocket.onmessage = async (event) => {
-        const message = JSON.parse(event.data);
-        await this.handleSignalingMessage(message);
+        try {
+          const message = JSON.parse(event.data);
+          console.log('📥 Client received message:', message);
+          if (message.sessionCode === sessionCode || !message.sessionCode) {
+            await this.handleSignalingMessage(message);
+          } else {
+            console.log('🚫 Ignoring message for different session:', message.sessionCode);
+          }
+        } catch (error) {
+          console.error('❌ Failed to parse signaling message:', error);
+        }
       };
 
       this.signalingSocket.onerror = (error) => {
-        console.error('Signaling error:', error);
+        console.error('❌ Signaling error:', error);
+      };
+
+      this.signalingSocket.onclose = (event) => {
+        console.log('🔌 Signaling connection closed:', event.code, event.reason);
       };
 
     } catch (error) {
-      console.error('Failed to connect to host:', error);
+      console.error('❌ Failed to connect to host:', error);
     }
   }
 
   private async handleSignalingMessage(message: any): Promise<void> {
     try {
+      console.log(`🔄 Handling signaling message: ${message.type}`);
+      
       switch (message.type) {
         case 'offer':
           if (!this.isHost) {
+            console.log('📨 Client: Received offer, creating answer');
             await this.peerConnection.setRemoteDescription(message.offer);
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
-            this.signalingSocket?.send(JSON.stringify({
+            const answerMessage = {
               type: 'answer',
-              answer: answer
-            }));
+              answer: answer,
+              sessionCode: this.currentSession?.sessionId,
+              deviceId: Device.modelName || 'Client Device',
+              timestamp: Date.now()
+            };
+            this.signalingSocket?.send(JSON.stringify(answerMessage));
+            console.log('📤 Sent answer:', answerMessage);
           }
           break;
 
         case 'answer':
           if (this.isHost) {
+            console.log('📨 Host: Received answer');
             await this.peerConnection.setRemoteDescription(message.answer);
+            this.addConnectedDevice(message.deviceId || 'Remote Device', false);
+            console.log('✅ WebRTC connection established');
           }
           break;
 
         case 'ice-candidate':
-          await this.peerConnection.addIceCandidate(message.candidate);
+          console.log('🧊 Received ICE candidate');
+          if (message.candidate) {
+            await this.peerConnection.addIceCandidate(message.candidate);
+            console.log('✅ ICE candidate added');
+          }
           break;
 
         case 'join':
-          if (this.isHost) {
+          if (this.isHost && message.sessionCode === this.currentSession?.sessionId) {
+            console.log('👋 Host: Client wants to join, creating offer');
+            this.addConnectedDevice(message.deviceId || 'Remote Device', false);
             const offer = await this.peerConnection.createOffer();
             await this.peerConnection.setLocalDescription(offer);
-            this.signalingSocket?.send(JSON.stringify({
+            const offerMessage = {
               type: 'offer',
-              offer: offer
-            }));
+              offer: offer,
+              sessionCode: this.currentSession?.sessionId,
+              deviceId: Device.modelName || 'Host Device',
+              timestamp: Date.now()
+            };
+            this.signalingSocket?.send(JSON.stringify(offerMessage));
+            console.log('📤 Sent offer:', offerMessage);
           }
+          break;
+
+        case 'device-connected':
+          console.log('📱 Device connected notification');
+          this.addConnectedDevice(message.deviceId, message.isHost);
+          break;
+
+        case 'device-disconnected':
+          console.log('📱 Device disconnected notification');
+          this.removeConnectedDevice(message.deviceId);
           break;
       }
     } catch (error) {
-      console.error('Error handling signaling message:', error);
+      console.error('❌ Error handling signaling message:', error);
+    }
+  }
+
+  private addConnectedDevice(deviceId: string, isHost: boolean): void {
+    const existingDevice = this.connectedDevices.find(d => d.id === deviceId);
+    if (!existingDevice) {
+      const newDevice: CompanionDevice = {
+        id: deviceId,
+        name: deviceId,
+        connected: true,
+        isHost: isHost
+      };
+      this.connectedDevices.push(newDevice);
+      console.log(`✅ Added connected device: ${deviceId} (Host: ${isHost})`);
+      
+      if (this.currentSession) {
+        this.currentSession.connectedDevices = [...this.connectedDevices];
+        console.log(`📱 Updated session devices:`, this.currentSession.connectedDevices);
+      }
+    } else {
+      existingDevice.connected = true;
+      console.log(`🔄 Updated existing device: ${deviceId}`);
+    }
+  }
+
+  private removeConnectedDevice(deviceId: string): void {
+    const deviceIndex = this.connectedDevices.findIndex(d => d.id === deviceId);
+    if (deviceIndex !== -1) {
+      this.connectedDevices.splice(deviceIndex, 1);
+      console.log(`❌ Removed connected device: ${deviceId}`);
+      
+      if (this.currentSession) {
+        this.currentSession.connectedDevices = [...this.connectedDevices];
+        console.log(`📱 Updated session devices:`, this.currentSession.connectedDevices);
+      }
+    }
+  }
+
+  private notifyConnectionStateChange(state: string): void {
+    if (this.signalingSocket && this.currentSession) {
+      const stateMessage = {
+        type: state === 'connected' ? 'device-connected' : 'device-disconnected',
+        deviceId: Device.modelName || 'Unknown Device',
+        isHost: this.isHost,
+        sessionCode: this.currentSession.sessionId,
+        timestamp: Date.now()
+      };
+      this.signalingSocket.send(JSON.stringify(stateMessage));
+      console.log(`📤 Sent connection state: ${state}`, stateMessage);
     }
   }
 
@@ -347,12 +492,30 @@ class SplitSoundCompanionService {
   }
 
   getConnectionStatus(): ConnectionStatus {
-    return {
+    const status = {
       isHost: this.isHost,
       isConnected: this.isConnected,
       sessionId: this.currentSession?.sessionId || null,
-      connectedDevices: this.connectedDevices,
+      connectedDevices: this.currentSession?.connectedDevices || this.connectedDevices,
       syncOffset: this.syncOffset,
+    };
+    console.log('📊 Current connection status:', status);
+    return status;
+  }
+
+  getDebugInfo(): any {
+    return {
+      isHost: this.isHost,
+      isConnected: this.isConnected,
+      sessionId: this.currentSession?.sessionId,
+      connectedDevices: this.connectedDevices,
+      currentSession: this.currentSession,
+      peerConnectionState: this.peerConnection?.connectionState,
+      signalingState: this.peerConnection?.signalingState,
+      iceConnectionState: this.peerConnection?.iceConnectionState,
+      hasAudioStream: !!this.audioStream,
+      signalingConnected: this.signalingSocket?.readyState === WebSocket.OPEN,
+      syncOffset: this.syncOffset
     };
   }
 
