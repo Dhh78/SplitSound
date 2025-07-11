@@ -64,6 +64,12 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
           </View>
 
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Signaling Messages</Text>
+            <Text style={styles.debugText}>Last Sent: {debugInfo.lastSentMessage || 'None'}</Text>
+            <Text style={styles.debugText}>Last Received: {debugInfo.lastReceivedMessage || 'None'}</Text>
+          </View>
+
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>Session Details</Text>
             <Text style={styles.debugText}>
               {JSON.stringify(debugInfo.currentSession, null, 2)}

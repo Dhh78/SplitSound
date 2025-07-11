@@ -20,6 +20,8 @@ class SplitSoundCompanionService {
   private audioStream: MediaStream | null = null;
   private signalingSocket: WebSocket | null = null;
   private localAudio: HTMLAudioElement | null = null;
+  private lastSentMessage: string = '';
+  private lastReceivedMessage: string = '';
 
   constructor() {
     this.initializeWebRTC();
@@ -49,11 +51,20 @@ class SplitSoundCompanionService {
   async requestAudioPermissions(): Promise<boolean> {
     try {
       if (Platform.OS === 'web') {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(device => device.kind === 'audioinput');
+        
+        if (audioInputs.length === 0) {
+          console.warn('⚠️ No audio input devices available, continuing without audio stream');
+          return true;
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({ 
           audio: true
         });
         this.audioStream = stream;
         console.log('✅ Audio permissions granted (Web)');
+        stream.getTracks().forEach(track => track.stop());
         return true;
       } else {
         const { mediaDevices } = require('react-native-webrtc');
@@ -69,13 +80,22 @@ class SplitSoundCompanionService {
       console.error('❌ Audio permission request failed:', error);
       if (error instanceof Error) {
         if (error.name === 'NotFoundError') {
-          console.error('No audio input device found. Please check microphone connection.');
+          console.warn('⚠️ No audio input device found, continuing without audio stream for signaling test');
         } else if (error.name === 'NotAllowedError') {
           console.error('Audio permission denied by user. Please grant microphone access.');
+          return false;
         }
       }
-      return false;
+      console.warn('⚠️ Audio permissions failed, continuing without audio stream for signaling test');
+      return true;
     }
+  }
+
+  private getDeviceId(): string {
+    if (Platform.OS === 'web') {
+      return `Web-${navigator.userAgent.includes('Chrome') ? 'Chrome' : 'Browser'}-${Date.now().toString().slice(-4)}`;
+    }
+    return Device.modelName || `${Platform.OS}-Device-${Date.now().toString().slice(-4)}`;
   }
 
   generateSessionCode(): string {
@@ -90,7 +110,7 @@ class SplitSoundCompanionService {
       }
 
       const sessionCode = this.generateSessionCode();
-      const deviceId = Device.modelName || 'Unknown Device';
+      const deviceId = this.getDeviceId();
       
       this.currentSession = {
         sessionId: sessionCode,
@@ -121,7 +141,7 @@ class SplitSoundCompanionService {
 
   async joinSession(sessionCode: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const deviceId = Device.modelName || 'Unknown Device';
+      const deviceId = this.getDeviceId();
       
       this.currentSession = {
         sessionId: sessionCode,
@@ -183,7 +203,7 @@ class SplitSoundCompanionService {
         }
         const deviceConnectedMessage = {
           type: 'device-connected',
-          deviceId: Device.modelName || 'Connected Device',
+          deviceId: this.getDeviceId(),
           isHost: this.isHost,
           sessionCode: this.currentSession?.sessionId,
           timestamp: Date.now()
@@ -198,7 +218,7 @@ class SplitSoundCompanionService {
             type: 'ice-candidate',
             candidate: event.candidate,
             sessionCode: this.currentSession?.sessionId,
-            deviceId: Device.modelName || 'Unknown Device',
+            deviceId: this.getDeviceId(),
             timestamp: Date.now()
           };
           this.signalingSocket.send(JSON.stringify(candidateMessage));
@@ -256,16 +276,18 @@ class SplitSoundCompanionService {
         const hostMessage = {
           type: 'host',
           sessionCode: sessionCode,
-          deviceId: Device.modelName || 'Host Device',
+          deviceId: this.getDeviceId(),
           timestamp: Date.now()
         };
         this.signalingSocket?.send(JSON.stringify(hostMessage));
+        this.lastSentMessage = `host to session ${sessionCode}`;
         console.log('📤 Sent host registration:', hostMessage);
       };
 
       this.signalingSocket.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
+          this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
           console.log('📥 Host received message:', message);
           if (message.sessionCode === sessionCode || !message.sessionCode) {
             await this.handleSignalingMessage(message);
@@ -301,16 +323,18 @@ class SplitSoundCompanionService {
         const joinMessage = {
           type: 'join',
           sessionCode: sessionCode,
-          deviceId: deviceId,
+          deviceId: this.getDeviceId(),
           timestamp: Date.now()
         };
         this.signalingSocket?.send(JSON.stringify(joinMessage));
+        this.lastSentMessage = `join to session ${sessionCode}`;
         console.log('📤 Sent join request:', joinMessage);
       };
 
       this.signalingSocket.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
+          this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
           console.log('📥 Client received message:', message);
           if (message.sessionCode === sessionCode || !message.sessionCode) {
             await this.handleSignalingMessage(message);
@@ -343,6 +367,7 @@ class SplitSoundCompanionService {
         case 'offer':
           if (!this.isHost) {
             console.log('📨 Client: Received offer, creating answer');
+            this.addConnectedDevice(message.deviceId || 'Host Device', true);
             await this.peerConnection.setRemoteDescription(message.offer);
             const answer = await this.peerConnection.createAnswer();
             await this.peerConnection.setLocalDescription(answer);
@@ -350,11 +375,14 @@ class SplitSoundCompanionService {
               type: 'answer',
               answer: answer,
               sessionCode: this.currentSession?.sessionId,
-              deviceId: Device.modelName || 'Client Device',
+              deviceId: this.getDeviceId(),
               timestamp: Date.now()
             };
             this.signalingSocket?.send(JSON.stringify(answerMessage));
+            this.lastSentMessage = `answer to ${message.deviceId || 'host'}`;
             console.log('📤 Sent answer:', answerMessage);
+            
+            this.notifyConnectionStateChange('connected');
           }
           break;
 
@@ -362,8 +390,9 @@ class SplitSoundCompanionService {
           if (this.isHost) {
             console.log('📨 Host: Received answer');
             await this.peerConnection.setRemoteDescription(message.answer);
-            this.addConnectedDevice(message.deviceId || 'Remote Device', false);
             console.log('✅ WebRTC connection established');
+            
+            this.notifyConnectionStateChange('connected');
           }
           break;
 
@@ -385,10 +414,11 @@ class SplitSoundCompanionService {
               type: 'offer',
               offer: offer,
               sessionCode: this.currentSession?.sessionId,
-              deviceId: Device.modelName || 'Host Device',
+              deviceId: this.getDeviceId(),
               timestamp: Date.now()
             };
             this.signalingSocket?.send(JSON.stringify(offerMessage));
+            this.lastSentMessage = `offer to ${message.deviceId || 'client'}`;
             console.log('📤 Sent offer:', offerMessage);
           }
           break;
@@ -447,12 +477,13 @@ class SplitSoundCompanionService {
     if (this.signalingSocket && this.currentSession) {
       const stateMessage = {
         type: state === 'connected' ? 'device-connected' : 'device-disconnected',
-        deviceId: Device.modelName || 'Unknown Device',
+        deviceId: this.getDeviceId(),
         isHost: this.isHost,
         sessionCode: this.currentSession.sessionId,
         timestamp: Date.now()
       };
       this.signalingSocket.send(JSON.stringify(stateMessage));
+      this.lastSentMessage = `${state} notification`;
       console.log(`📤 Sent connection state: ${state}`, stateMessage);
     }
   }
@@ -484,6 +515,8 @@ class SplitSoundCompanionService {
       this.isHost = false;
       this.isConnected = false;
       this.connectedDevices = [];
+      this.lastSentMessage = '';
+      this.lastReceivedMessage = '';
       
       console.log('Session stopped');
     } catch (error) {
@@ -515,7 +548,9 @@ class SplitSoundCompanionService {
       iceConnectionState: this.peerConnection?.iceConnectionState,
       hasAudioStream: !!this.audioStream,
       signalingConnected: this.signalingSocket?.readyState === WebSocket.OPEN,
-      syncOffset: this.syncOffset
+      syncOffset: this.syncOffset,
+      lastSentMessage: this.lastSentMessage,
+      lastReceivedMessage: this.lastReceivedMessage
     };
   }
 
