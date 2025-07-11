@@ -22,6 +22,9 @@ class SplitSoundCompanionService {
   private localAudio: HTMLAudioElement | null = null;
   private lastSentMessage: string = '';
   private lastReceivedMessage: string = '';
+  private messagesSent: number = 0;
+  private messagesReceived: number = 0;
+  private debugErrors: string[] = [];
 
   constructor() {
     this.initializeWebRTC();
@@ -186,14 +189,21 @@ class SplitSoundCompanionService {
       this.peerConnection = new RTCPeerConnection({
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' }
+        ],
+        iceCandidatePoolSize: 10
       });
 
       if (this.isHost && this.audioStream) {
         this.audioStream.getTracks().forEach(track => {
           this.peerConnection.addTrack(track, this.audioStream);
         });
+        console.log('🎵 Added audio tracks to peer connection');
+      } else if (this.isHost) {
+        console.warn('⚠️ Host has no audio stream to share');
       }
 
       this.peerConnection.ontrack = (event: any) => {
@@ -281,6 +291,7 @@ class SplitSoundCompanionService {
         };
         this.signalingSocket?.send(JSON.stringify(hostMessage));
         this.lastSentMessage = `host to session ${sessionCode}`;
+        this.messagesSent++;
         console.log('📤 Sent host registration:', hostMessage);
       };
 
@@ -288,6 +299,7 @@ class SplitSoundCompanionService {
         try {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
+          this.messagesReceived++;
           console.log('📥 Host received message:', message);
           if (message.sessionCode === sessionCode || !message.sessionCode) {
             await this.handleSignalingMessage(message);
@@ -296,6 +308,7 @@ class SplitSoundCompanionService {
           }
         } catch (error) {
           console.error('❌ Failed to parse signaling message:', error);
+          this.debugErrors.push(`Parse error: ${error}`);
         }
       };
 
@@ -328,6 +341,7 @@ class SplitSoundCompanionService {
         };
         this.signalingSocket?.send(JSON.stringify(joinMessage));
         this.lastSentMessage = `join to session ${sessionCode}`;
+        this.messagesSent++;
         console.log('📤 Sent join request:', joinMessage);
       };
 
@@ -335,6 +349,7 @@ class SplitSoundCompanionService {
         try {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
+          this.messagesReceived++;
           console.log('📥 Client received message:', message);
           if (message.sessionCode === sessionCode || !message.sessionCode) {
             await this.handleSignalingMessage(message);
@@ -343,6 +358,7 @@ class SplitSoundCompanionService {
           }
         } catch (error) {
           console.error('❌ Failed to parse signaling message:', error);
+          this.debugErrors.push(`Parse error: ${error}`);
         }
       };
 
@@ -382,13 +398,24 @@ class SplitSoundCompanionService {
             this.lastSentMessage = `answer to ${message.deviceId || 'host'}`;
             console.log('📤 Sent answer:', answerMessage);
             
+            const clientConnectedMessage = {
+              type: 'device-connected',
+              deviceId: this.getDeviceId(),
+              isHost: false,
+              sessionCode: this.currentSession?.sessionId,
+              timestamp: Date.now()
+            };
+            this.signalingSocket?.send(JSON.stringify(clientConnectedMessage));
+            console.log('📤 Client: Sent device connected notification:', clientConnectedMessage);
+            
             this.notifyConnectionStateChange('connected');
           }
           break;
 
         case 'answer':
           if (this.isHost) {
-            console.log('📨 Host: Received answer');
+            console.log('📨 Host: Received answer from client');
+            this.addConnectedDevice(message.deviceId || 'Client Device', false);
             await this.peerConnection.setRemoteDescription(message.answer);
             console.log('✅ WebRTC connection established');
             
@@ -517,6 +544,9 @@ class SplitSoundCompanionService {
       this.connectedDevices = [];
       this.lastSentMessage = '';
       this.lastReceivedMessage = '';
+      this.messagesSent = 0;
+      this.messagesReceived = 0;
+      this.debugErrors = [];
       
       console.log('Session stopped');
     } catch (error) {
@@ -541,16 +571,22 @@ class SplitSoundCompanionService {
       isHost: this.isHost,
       isConnected: this.isConnected,
       sessionId: this.currentSession?.sessionId,
+      deviceId: this.getDeviceId(),
       connectedDevices: this.connectedDevices,
       currentSession: this.currentSession,
       peerConnectionState: this.peerConnection?.connectionState,
       signalingState: this.peerConnection?.signalingState,
       iceConnectionState: this.peerConnection?.iceConnectionState,
+      iceGatheringState: this.peerConnection?.iceGatheringState,
       hasAudioStream: !!this.audioStream,
+      audioTrackCount: this.audioStream?.getTracks().length || 0,
       signalingConnected: this.signalingSocket?.readyState === WebSocket.OPEN,
       syncOffset: this.syncOffset,
       lastSentMessage: this.lastSentMessage,
-      lastReceivedMessage: this.lastReceivedMessage
+      lastReceivedMessage: this.lastReceivedMessage,
+      messagesSent: this.messagesSent || 0,
+      messagesReceived: this.messagesReceived || 0,
+      errors: this.debugErrors || []
     };
   }
 

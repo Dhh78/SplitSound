@@ -152,7 +152,13 @@ export default function App() {
       <StatusBar style="auto" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>{i18n.t('app.title')}</Text>
+          <View style={styles.logoContainer}>
+            <View style={styles.logo}>
+              <Text style={styles.logoIcon}>🎵</Text>
+            </View>
+            <Text style={styles.title}>SplitSound</Text>
+            <Text style={styles.subtitle}>Companion</Text>
+          </View>
           <TouchableOpacity 
             style={styles.debugButton}
             onPress={() => setShowDebugPanel(true)}
@@ -229,31 +235,67 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 20,
+    padding: 24,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
     position: 'relative',
+  },
+  logoContainer: {
+    alignItems: 'center',
+  },
+  logo: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    shadowColor: '#667eea',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  logoIcon: {
+    fontSize: 28,
+    color: '#ffffff',
   },
   debugButton: {
     position: 'absolute',
     right: 0,
-    padding: 10,
+    padding: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   debugButtonText: {
-    fontSize: 20,
+    fontSize: 18,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#1e293b',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#667eea',
+    marginTop: -4,
+    letterSpacing: 1,
   },
   content: {
     flex: 1,
@@ -262,29 +304,51 @@ const styles = StyleSheet.create({
   buttonContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
   },
   hostingContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
   joiningContainer: {
     width: '100%',
     alignItems: 'center',
-    marginBottom: 30,
+    marginBottom: 40,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
   },
   statusText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#34C759',
-    marginBottom: 20,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10b981',
+    marginBottom: 24,
+    textAlign: 'center',
   },
   errorText: {
-    color: '#ff4444',
+    color: '#ef4444',
     fontSize: 16,
     textAlign: 'center',
-    marginVertical: 10,
-    paddingHorizontal: 20,
+    marginVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
   },
 });

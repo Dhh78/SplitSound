@@ -61,34 +61,41 @@ const AudioSharingButton: React.FC<AudioSharingButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 25,
+    paddingHorizontal: 48,
+    paddingVertical: 20,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 200,
-    minHeight: 50,
-    marginVertical: 10,
+    minWidth: 280,
+    minHeight: 64,
+    marginVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   buttonHost: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#667eea',
   },
   buttonJoin: {
-    backgroundColor: '#34C759',
+    backgroundColor: '#10b981',
   },
   buttonStop: {
-    backgroundColor: '#ff4444',
+    backgroundColor: '#ef4444',
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   sessionCode: {
-    fontSize: 14,
-    fontWeight: '400',
-    marginTop: 4,
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 8,
+    opacity: 0.9,
   },
 });
 

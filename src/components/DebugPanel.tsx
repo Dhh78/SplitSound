@@ -34,45 +34,66 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
         
         <ScrollView style={styles.content}>
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Connection Status</Text>
-            <Text style={styles.debugText}>Host: {debugInfo.isHost ? '✅' : '❌'}</Text>
-            <Text style={styles.debugText}>Connected: {debugInfo.isConnected ? '✅' : '❌'}</Text>
-            <Text style={styles.debugText}>Session ID: {debugInfo.sessionId || 'None'}</Text>
+            <Text style={styles.sectionTitle}>🔗 Connection Status</Text>
+            <Text style={styles.debugText}>Device Role: {debugInfo.isHost ? '🏠 Host' : '📱 Client'}</Text>
+            <Text style={styles.debugText}>Connected: {debugInfo.isConnected ? '✅ Yes' : '❌ No'}</Text>
+            <Text style={styles.debugText}>Session Code: {debugInfo.sessionId || '❌ None'}</Text>
+            <Text style={styles.debugText}>Device ID: {debugInfo.deviceId || 'Unknown'}</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>WebRTC Status</Text>
-            <Text style={styles.debugText}>Peer Connection: {debugInfo.peerConnectionState || 'None'}</Text>
-            <Text style={styles.debugText}>Signaling State: {debugInfo.signalingState || 'None'}</Text>
-            <Text style={styles.debugText}>ICE Connection: {debugInfo.iceConnectionState || 'None'}</Text>
+            <Text style={styles.sectionTitle}>🌐 WebRTC Status</Text>
+            <Text style={styles.debugText}>Peer Connection: {debugInfo.peerConnectionState || '❌ None'}</Text>
+            <Text style={styles.debugText}>Signaling State: {debugInfo.signalingState || '❌ None'}</Text>
+            <Text style={styles.debugText}>ICE Connection: {debugInfo.iceConnectionState || '❌ None'}</Text>
+            <Text style={styles.debugText}>ICE Gathering: {debugInfo.iceGatheringState || '❌ None'}</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Media and Signaling</Text>
-            <Text style={styles.debugText}>Audio Stream: {debugInfo.hasAudioStream ? '✅' : '❌'}</Text>
-            <Text style={styles.debugText}>Signaling Connected: {debugInfo.signalingConnected ? '✅' : '❌'}</Text>
+            <Text style={styles.sectionTitle}>🎵 Media & Signaling</Text>
+            <Text style={styles.debugText}>Audio Stream: {debugInfo.hasAudioStream ? '✅ Active' : '❌ None'}</Text>
+            <Text style={styles.debugText}>Signaling Socket: {debugInfo.signalingConnected ? '✅ Connected' : '❌ Disconnected'}</Text>
             <Text style={styles.debugText}>Sync Offset: {debugInfo.syncOffset}ms</Text>
+            <Text style={styles.debugText}>Audio Tracks: {debugInfo.audioTrackCount || 0}</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Connected Devices ({debugInfo.connectedDevices?.length || 0})</Text>
-            {debugInfo.connectedDevices?.map((device: any, index: number) => (
-              <Text key={index} style={styles.debugText}>
-                {device.name} ({device.isHost ? 'Host' : 'Client'}) - {device.connected ? '✅' : '❌'}
-              </Text>
-            ))}
+            <Text style={styles.sectionTitle}>📱 Connected Devices ({debugInfo.connectedDevices?.length || 0})</Text>
+            {debugInfo.connectedDevices?.length === 0 ? (
+              <Text style={styles.debugText}>❌ No devices connected</Text>
+            ) : (
+              debugInfo.connectedDevices?.map((device: any, index: number) => (
+                <Text key={index} style={styles.debugText}>
+                  {device.isHost ? '🏠' : '📱'} {device.name} - {device.connected ? '✅' : '❌'}
+                </Text>
+              ))
+            )}
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Signaling Messages</Text>
-            <Text style={styles.debugText}>Last Sent: {debugInfo.lastSentMessage || 'None'}</Text>
-            <Text style={styles.debugText}>Last Received: {debugInfo.lastReceivedMessage || 'None'}</Text>
+            <Text style={styles.sectionTitle}>📡 Signaling Messages</Text>
+            <Text style={styles.debugText}>Last Sent: {debugInfo.lastSentMessage || '❌ None'}</Text>
+            <Text style={styles.debugText}>Last Received: {debugInfo.lastReceivedMessage || '❌ None'}</Text>
+            <Text style={styles.debugText}>Message Count: Sent {debugInfo.messagesSent || 0}, Received {debugInfo.messagesReceived || 0}</Text>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Session Details</Text>
+            <Text style={styles.sectionTitle}>⚠️ Errors & Warnings</Text>
+            {debugInfo.errors?.length > 0 ? (
+              debugInfo.errors.map((error: string, index: number) => (
+                <Text key={index} style={[styles.debugText, styles.errorText]}>
+                  ❌ {error}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.debugText}>✅ No errors</Text>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📊 Session Details</Text>
             <Text style={styles.debugText}>
-              {JSON.stringify(debugInfo.currentSession, null, 2)}
+              {debugInfo.currentSession ? JSON.stringify(debugInfo.currentSession, null, 2) : '❌ No active session'}
             </Text>
           </View>
         </ScrollView>
@@ -136,6 +157,10 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: '#666',
     marginBottom: 5,
+  },
+  errorText: {
+    color: '#ff4444',
+    fontWeight: 'bold',
   },
 });
 
