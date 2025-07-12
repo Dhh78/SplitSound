@@ -11,9 +11,15 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
+    "@config-plugins/react-native-webrtc": "^12.0.0",
     "nodemon": "^3.0.2"
   },
-  "keywords": ["webrtc", "signaling", "websocket", "audio-sharing"],
+  "keywords": [
+    "webrtc",
+    "signaling",
+    "websocket",
+    "audio-sharing"
+  ],
   "author": "SplitSound Team",
   "license": "MIT",
   "engines": {
