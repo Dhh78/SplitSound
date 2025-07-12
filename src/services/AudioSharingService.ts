@@ -288,7 +288,8 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`
+        `http://localhost:8080`,
+        `https://user:768a9d987985a9fa9980949d5296b187@audio-sharing-app-tunnel-mdwb5fz4.devinapps.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -449,7 +450,8 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`
+        `http://localhost:8080`,
+        `https://user:768a9d987985a9fa9980949d5296b187@audio-sharing-app-tunnel-mdwb5fz4.devinapps.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
