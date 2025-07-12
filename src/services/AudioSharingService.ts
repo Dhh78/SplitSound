@@ -289,7 +289,7 @@ class SplitSoundCompanionService {
       
       const httpSignalingServers = [
         `http://localhost:8080`,
-        `https://api.jsonbin.io/v3/b`
+        `https://splitsound-signaling-default-rtdb.firebaseio.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -451,7 +451,7 @@ class SplitSoundCompanionService {
       
       const httpSignalingServers = [
         `http://localhost:8080`,
-        `https://api.jsonbin.io/v3/b`
+        `https://splitsound-signaling-default-rtdb.firebaseio.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
