@@ -1,0 +1,19 @@
+{
+  "name": "splitsound-signaling-server",
+  "version": "1.0.0",
+  "description": "WebRTC signaling server for SplitSound Companion",
+  "main": "signaling-server.js",
+  "scripts": {
+    "start": "node signaling-server.js",
+    "dev": "nodemon signaling-server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": ["webrtc", "signaling", "websocket", "audio-sharing"],
+  "author": "SplitSound Team",
+  "license": "MIT"
+}

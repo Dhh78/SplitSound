@@ -123,10 +123,27 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose, audioSharingS
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>📡 Signaling Messages</Text>
+            <Text style={styles.debugText}>WebSocket URL: {debugInfo.webSocketUrl || '❌ None'}</Text>
+            <Text style={styles.debugText}>Connection Attempts: {debugInfo.connectionAttempts || 0}</Text>
             <Text style={styles.debugText}>Last Sent: {debugInfo.lastSentMessage || '❌ None'}</Text>
             <Text style={styles.debugText}>Last Received: {debugInfo.lastReceivedMessage || '❌ None'}</Text>
             <Text style={styles.debugText}>Message Count: Sent {debugInfo.messagesSent || 0}, Received {debugInfo.messagesReceived || 0}</Text>
+            <Text style={styles.debugText}>Platform: {debugInfo.platform || 'Unknown'}</Text>
             <Text style={styles.debugText}>Timestamp: {debugInfo.timestamp ? new Date(debugInfo.timestamp).toLocaleTimeString() : 'Unknown'}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>📜 Recent Messages ({debugInfo.signalingMessages?.length || 0})</Text>
+            {debugInfo.signalingMessages && debugInfo.signalingMessages.length > 0 ? (
+              debugInfo.signalingMessages.slice(-5).map((msg: any, index: number) => (
+                <Text key={index} style={[styles.debugText, msg.direction === 'sent' ? styles.sentMessage : styles.receivedMessage]}>
+                  {msg.direction === 'sent' ? '📤' : '📥'} {msg.message.type} - {new Date(msg.timestamp).toLocaleTimeString()}
+                  {msg.method && ` (${msg.method})`}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.debugText}>❌ No messages</Text>
+            )}
           </View>
 
           <View style={styles.section}>
@@ -229,6 +246,12 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff4444',
     fontWeight: 'bold',
+  },
+  sentMessage: {
+    color: '#2196F3',
+  },
+  receivedMessage: {
+    color: '#4CAF50',
   },
 });
 

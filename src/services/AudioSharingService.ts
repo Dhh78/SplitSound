@@ -25,6 +25,9 @@ class SplitSoundCompanionService {
   private messagesSent: number = 0;
   private messagesReceived: number = 0;
   private debugErrors: string[] = [];
+  private signalingMessageHistory: any[] = [];
+  private webSocketUrl: string = '';
+  private connectionAttempts: number = 0;
 
   constructor() {
     this.initializeWebRTC();
@@ -285,27 +288,40 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const signalingServers = [
+        `ws://localhost:8080`,
         `wss://echo.websocket.org`,
         `wss://ws.postman-echo.com/raw`,
-        `wss://socketsbay.com/wss/v2/1/${sessionCode}/`
+        `wss://connect.websocket.in/v3/1/${sessionCode}`,
+        `wss://socketsbay.com/wss/v2/2/${sessionCode}/`
       ];
       
       let connected = false;
+      this.connectionAttempts = 0;
+      
       for (const serverUrl of signalingServers) {
         try {
-          console.log(`🔗 Attempting connection to: ${serverUrl}`);
+          this.connectionAttempts++;
+          console.log(`🔗 Attempting connection ${this.connectionAttempts}/${signalingServers.length} to: ${serverUrl}`);
           this.signalingSocket = new WebSocket(serverUrl);
+          this.webSocketUrl = serverUrl;
           
           await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 8000);
             this.signalingSocket!.onopen = () => {
               clearTimeout(timeout);
               connected = true;
+              console.log(`✅ Successfully connected to signaling server: ${serverUrl}`);
               resolve(true);
             };
-            this.signalingSocket!.onerror = () => {
+            this.signalingSocket!.onerror = (error) => {
               clearTimeout(timeout);
-              reject(new Error('WebSocket connection failed'));
+              console.error(`❌ WebSocket connection error for ${serverUrl}:`, error);
+              reject(new Error(`WebSocket connection failed: ${error}`));
+            };
+            this.signalingSocket!.onclose = (event) => {
+              clearTimeout(timeout);
+              console.warn(`🔌 WebSocket closed during connection attempt: ${event.code} - ${event.reason}`);
+              reject(new Error(`WebSocket closed: ${event.code} - ${event.reason}`));
             };
           });
           
@@ -313,6 +329,10 @@ class SplitSoundCompanionService {
         } catch (error) {
           console.warn(`Failed to connect to ${serverUrl}:`, error);
           this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
+          if (this.signalingSocket) {
+            this.signalingSocket.close();
+            this.signalingSocket = null;
+          }
         }
       }
       
@@ -329,11 +349,19 @@ class SplitSoundCompanionService {
           type: 'host',
           sessionCode: sessionCode,
           deviceId: this.getDeviceId(),
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          action: 'register_host',
+          platform: Platform.OS,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'React Native'
         };
         this.signalingSocket?.send(JSON.stringify(hostMessage));
-        this.lastSentMessage = `host to session ${sessionCode}`;
+        this.lastSentMessage = `host registration to session ${sessionCode}`;
         this.messagesSent++;
+        this.signalingMessageHistory.push({
+          direction: 'sent',
+          message: hostMessage,
+          timestamp: new Date().toISOString()
+        });
         console.log('📤 Sent host registration:', hostMessage);
       };
 
@@ -342,9 +370,21 @@ class SplitSoundCompanionService {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
           this.messagesReceived++;
+          this.signalingMessageHistory.push({
+            direction: 'received',
+            message: message,
+            timestamp: new Date().toISOString()
+          });
           console.log('📥 Host received message:', message);
-          if (message.sessionCode === sessionCode || !message.sessionCode) {
-            await this.handleSignalingMessage(message);
+          
+          if (message.sessionCode === sessionCode || !message.sessionCode || message.type === 'echo') {
+            if (message.type !== 'echo' && message.deviceId !== this.getDeviceId()) {
+              await this.handleSignalingMessage(message);
+            } else if (message.type === 'echo') {
+              console.log('🔄 Received echo message, ignoring');
+            } else {
+              console.log('🚫 Ignoring message from self');
+            }
           } else {
             console.log('🚫 Ignoring message for different session:', message.sessionCode);
           }
@@ -376,27 +416,40 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const signalingServers = [
+        `ws://localhost:8080`,
         `wss://echo.websocket.org`,
         `wss://ws.postman-echo.com/raw`,
-        `wss://socketsbay.com/wss/v2/1/${sessionCode}/`
+        `wss://connect.websocket.in/v3/1/${sessionCode}`,
+        `wss://socketsbay.com/wss/v2/2/${sessionCode}/`
       ];
       
       let connected = false;
+      this.connectionAttempts = 0;
+      
       for (const serverUrl of signalingServers) {
         try {
-          console.log(`🔗 Attempting connection to: ${serverUrl}`);
+          this.connectionAttempts++;
+          console.log(`🔗 Attempting connection ${this.connectionAttempts}/${signalingServers.length} to: ${serverUrl}`);
           this.signalingSocket = new WebSocket(serverUrl);
+          this.webSocketUrl = serverUrl;
           
           await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 8000);
             this.signalingSocket!.onopen = () => {
               clearTimeout(timeout);
               connected = true;
+              console.log(`✅ Successfully connected to signaling server: ${serverUrl}`);
               resolve(true);
             };
-            this.signalingSocket!.onerror = () => {
+            this.signalingSocket!.onerror = (error) => {
               clearTimeout(timeout);
-              reject(new Error('WebSocket connection failed'));
+              console.error(`❌ WebSocket connection error for ${serverUrl}:`, error);
+              reject(new Error(`WebSocket connection failed: ${error}`));
+            };
+            this.signalingSocket!.onclose = (event) => {
+              clearTimeout(timeout);
+              console.warn(`🔌 WebSocket closed during connection attempt: ${event.code} - ${event.reason}`);
+              reject(new Error(`WebSocket closed: ${event.code} - ${event.reason}`));
             };
           });
           
@@ -404,6 +457,10 @@ class SplitSoundCompanionService {
         } catch (error) {
           console.warn(`Failed to connect to ${serverUrl}:`, error);
           this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
+          if (this.signalingSocket) {
+            this.signalingSocket.close();
+            this.signalingSocket = null;
+          }
         }
       }
       
@@ -420,11 +477,19 @@ class SplitSoundCompanionService {
           type: 'join',
           sessionCode: sessionCode,
           deviceId: this.getDeviceId(),
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          action: 'join_session',
+          platform: Platform.OS,
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'React Native'
         };
         this.signalingSocket?.send(JSON.stringify(joinMessage));
-        this.lastSentMessage = `join to session ${sessionCode}`;
+        this.lastSentMessage = `join request to session ${sessionCode}`;
         this.messagesSent++;
+        this.signalingMessageHistory.push({
+          direction: 'sent',
+          message: joinMessage,
+          timestamp: new Date().toISOString()
+        });
         console.log('📤 Sent join request:', joinMessage);
       };
 
@@ -433,9 +498,21 @@ class SplitSoundCompanionService {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
           this.messagesReceived++;
+          this.signalingMessageHistory.push({
+            direction: 'received',
+            message: message,
+            timestamp: new Date().toISOString()
+          });
           console.log('📥 Client received message:', message);
-          if (message.sessionCode === sessionCode || !message.sessionCode) {
-            await this.handleSignalingMessage(message);
+          
+          if (message.sessionCode === sessionCode || !message.sessionCode || message.type === 'echo') {
+            if (message.type !== 'echo' && message.deviceId !== this.getDeviceId()) {
+              await this.handleSignalingMessage(message);
+            } else if (message.type === 'echo') {
+              console.log('🔄 Received echo message, ignoring');
+            } else {
+              console.log('🚫 Ignoring message from self');
+            }
           } else {
             console.log('🚫 Ignoring message for different session:', message.sessionCode);
           }
@@ -676,13 +753,18 @@ class SplitSoundCompanionService {
       audioTrackCount: this.audioStream?.getTracks().length || 0,
       signalingConnected: this.signalingSocket?.readyState === WebSocket.OPEN,
       webSocketState: webSocketStateText,
+      webSocketUrl: this.webSocketUrl,
+      connectionAttempts: this.connectionAttempts,
       syncOffset: this.syncOffset,
       lastSentMessage: this.lastSentMessage,
       lastReceivedMessage: this.lastReceivedMessage,
       messagesSent: this.messagesSent || 0,
       messagesReceived: this.messagesReceived || 0,
+      signalingMessages: this.signalingMessageHistory.slice(-10) || [],
       errors: this.debugErrors || [],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      platform: Platform.OS,
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'React Native'
     };
   }
 
@@ -694,14 +776,18 @@ class SplitSoundCompanionService {
         role: debugInfo.isHost ? 'Host' : 'Client',
         deviceId: debugInfo.deviceId,
         sessionId: debugInfo.sessionId,
-        connected: debugInfo.isConnected
+        connected: debugInfo.isConnected,
+        platform: debugInfo.platform,
+        userAgent: debugInfo.userAgent
       },
       webrtcStatus: {
         peerConnectionState: debugInfo.peerConnectionState,
         signalingState: debugInfo.signalingState,
         iceConnectionState: debugInfo.iceConnectionState,
         iceGatheringState: debugInfo.iceGatheringState,
-        webSocketState: debugInfo.webSocketState
+        webSocketState: debugInfo.webSocketState,
+        webSocketUrl: debugInfo.webSocketUrl,
+        connectionAttempts: debugInfo.connectionAttempts
       },
       mediaStatus: {
         hasAudioStream: debugInfo.hasAudioStream,
@@ -713,7 +799,8 @@ class SplitSoundCompanionService {
         lastSent: debugInfo.lastSentMessage,
         lastReceived: debugInfo.lastReceivedMessage,
         messagesSent: debugInfo.messagesSent,
-        messagesReceived: debugInfo.messagesReceived
+        messagesReceived: debugInfo.messagesReceived,
+        messageHistory: debugInfo.signalingMessages || []
       },
       errors: debugInfo.errors,
       fullSession: debugInfo.currentSession
@@ -825,10 +912,20 @@ class SplitSoundCompanionService {
   private sendSignalingMessage(message: any): void {
     if (this.signalingSocket && this.signalingSocket.readyState === WebSocket.OPEN) {
       try {
-        this.signalingSocket.send(JSON.stringify(message));
+        const messageWithId = {
+          ...message,
+          messageId: Date.now() + Math.random(),
+          senderDeviceId: this.getDeviceId()
+        };
+        this.signalingSocket.send(JSON.stringify(messageWithId));
         this.messagesSent++;
-        console.log('📤 Sent message via WebSocket:', message);
-        this.lastSentMessage = `${message.type} from ${this.getDeviceId()}`;
+        this.lastSentMessage = `${message.type} to ${message.sessionCode || 'unknown'}`;
+        this.signalingMessageHistory.push({
+          direction: 'sent',
+          message: messageWithId,
+          timestamp: new Date().toISOString()
+        });
+        console.log('📤 Sent message via WebSocket:', messageWithId);
       } catch (error) {
         console.error('WebSocket send error:', error);
         this.debugErrors.push(`WebSocket send error: ${error}`);
