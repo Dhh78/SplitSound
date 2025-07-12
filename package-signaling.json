@@ -15,5 +15,8 @@
   },
   "keywords": ["webrtc", "signaling", "websocket", "audio-sharing"],
   "author": "SplitSound Team",
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
