@@ -287,6 +287,40 @@ class SplitSoundCompanionService {
     try {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
+      const httpSignalingServers = [
+        `http://localhost:8080`,
+        `https://api.jsonbin.io/v3/b`
+      ];
+      
+      for (const serverUrl of httpSignalingServers) {
+        try {
+          console.log(`🔗 Attempting HTTP signaling connection to: ${serverUrl}`);
+          const response = await fetch(`${serverUrl}/signaling`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'host',
+              sessionCode: sessionCode,
+              deviceId: this.getDeviceId(),
+              platform: Platform.OS,
+              timestamp: Date.now()
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.type === 'host_registered') {
+              console.log(`✅ HTTP signaling server connected: ${serverUrl}`);
+              this.webSocketUrl = serverUrl;
+              this.startHttpPolling(sessionCode);
+              return;
+            }
+          }
+        } catch (error) {
+          console.log(`❌ HTTP signaling failed for ${serverUrl}:`, error);
+        }
+      }
+      
       const signalingServers = [
         `wss://user:2e735e944a8dac33119387800ef6e48b@audio-sharing-app-tunnel-ayekalym.devinapps.com`,
         `wss://echo.websocket.org`,
@@ -414,6 +448,40 @@ class SplitSoundCompanionService {
   private async connectToHost(sessionCode: string, deviceId: string): Promise<void> {
     try {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
+      
+      const httpSignalingServers = [
+        `http://localhost:8080`,
+        `https://api.jsonbin.io/v3/b`
+      ];
+      
+      for (const serverUrl of httpSignalingServers) {
+        try {
+          console.log(`🔗 Attempting HTTP signaling connection to: ${serverUrl}`);
+          const response = await fetch(`${serverUrl}/signaling`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'join',
+              sessionCode: sessionCode,
+              deviceId: deviceId,
+              platform: Platform.OS,
+              timestamp: Date.now()
+            })
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            if (result.type === 'joined_session') {
+              console.log(`✅ HTTP signaling server connected: ${serverUrl}`);
+              this.webSocketUrl = serverUrl;
+              this.startHttpPolling(sessionCode);
+              return;
+            }
+          }
+        } catch (error) {
+          console.log(`❌ HTTP signaling failed for ${serverUrl}:`, error);
+        }
+      }
       
       const signalingServers = [
         `wss://user:2e735e944a8dac33119387800ef6e48b@audio-sharing-app-tunnel-ayekalym.devinapps.com`,
@@ -880,6 +948,37 @@ class SplitSoundCompanionService {
     }
   }
 
+  private startHttpPolling(sessionCode: string): void {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${this.webSocketUrl}/poll?session=${sessionCode}&device=${this.getDeviceId()}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.messages && data.messages.length > 0) {
+            data.messages.forEach((message: any) => {
+              console.log('📥 Received HTTP message:', message.type);
+              this.messagesReceived++;
+              this.lastReceivedMessage = `${message.type} from ${message.deviceId}`;
+              this.signalingMessageHistory.push({
+                direction: 'received',
+                message: message,
+                timestamp: new Date().toISOString()
+              });
+              this.handleSignalingMessage(message);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('❌ HTTP polling error:', error);
+        this.debugErrors.push(`HTTP polling error: ${error}`);
+      }
+      
+      if (!this.isConnected) {
+        clearInterval(pollInterval);
+      }
+    }, 2000);
+  }
+
   private startLocalStoragePolling(storageKey: string, isHost: boolean): void {
     const pollInterval = setInterval(() => {
       try {
@@ -909,7 +1008,43 @@ class SplitSoundCompanionService {
 
   private processedMessages = new Set<number>();
   
-  private sendSignalingMessage(message: any): void {
+  private async sendSignalingMessage(message: any): Promise<void> {
+    if (this.webSocketUrl && this.webSocketUrl.startsWith('http')) {
+      try {
+        const messageWithId = {
+          ...message,
+          messageId: Date.now() + Math.random(),
+          senderDeviceId: this.getDeviceId(),
+          deviceId: this.getDeviceId(),
+          sessionCode: this.currentSession?.sessionId
+        };
+        
+        const response = await fetch(`${this.webSocketUrl}/signaling`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(messageWithId)
+        });
+        
+        if (response.ok) {
+          this.messagesSent++;
+          this.lastSentMessage = `${message.type} to ${message.sessionCode || 'unknown'}`;
+          this.signalingMessageHistory.push({
+            direction: 'sent',
+            message: messageWithId,
+            timestamp: new Date().toISOString()
+          });
+          console.log('📤 Sent message via HTTP:', messageWithId);
+          return;
+        } else {
+          console.error('HTTP signaling send failed:', response.status);
+          this.debugErrors.push(`HTTP signaling send error: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('HTTP signaling send error:', error);
+        this.debugErrors.push(`HTTP signaling send error: ${error}`);
+      }
+    }
+    
     if (this.signalingSocket && this.signalingSocket.readyState === WebSocket.OPEN) {
       try {
         const messageWithId = {
