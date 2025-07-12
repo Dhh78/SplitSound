@@ -784,6 +784,8 @@ class SplitSoundCompanionService {
         
         this.sendSignalingMessage(joinMessage);
         
+        this.handleSignalingMessage(sessionData.host);
+        
         this.startLocalStoragePolling(storageKey, isHost);
       } else {
         throw new Error('Host session not found in localStorage');
