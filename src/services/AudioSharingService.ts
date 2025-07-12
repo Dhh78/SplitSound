@@ -288,8 +288,8 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`,
-        `https://user:9ae98e8913321b3c4f4ec80b13a5d134@split-audio-app-tunnel-urblc8c1.devinapps.com`
+        `http://localhost:8081`,
+        `https://splitsound-signaling.loca.lt`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -322,11 +322,7 @@ class SplitSoundCompanionService {
       }
       
       const signalingServers = [
-        `wss://user:2e735e944a8dac33119387800ef6e48b@audio-sharing-app-tunnel-ayekalym.devinapps.com`,
-        `wss://echo.websocket.org`,
-        `wss://ws.postman-echo.com/raw`,
-        `wss://connect.websocket.in/v3/1/${sessionCode}`,
-        `wss://socketsbay.com/wss/v2/2/${sessionCode}/`
+        `wss://splitsound-signaling.loca.lt`
       ];
       
       let connected = false;
@@ -450,8 +446,8 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`,
-        `https://user:9ae98e8913321b3c4f4ec80b13a5d134@split-audio-app-tunnel-urblc8c1.devinapps.com`
+        `http://localhost:8081`,
+        `https://splitsound-signaling.loca.lt`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -484,11 +480,7 @@ class SplitSoundCompanionService {
       }
       
       const signalingServers = [
-        `wss://user:2e735e944a8dac33119387800ef6e48b@audio-sharing-app-tunnel-ayekalym.devinapps.com`,
-        `wss://echo.websocket.org`,
-        `wss://ws.postman-echo.com/raw`,
-        `wss://connect.websocket.in/v3/1/${sessionCode}`,
-        `wss://socketsbay.com/wss/v2/2/${sessionCode}/`
+        `wss://splitsound-signaling.loca.lt`
       ];
       
       let connected = false;
