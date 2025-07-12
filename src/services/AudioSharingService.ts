@@ -288,8 +288,7 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`,
-        `https://splitsound-signaling-default-rtdb.firebaseio.com`
+        `http://localhost:8080`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -450,8 +449,7 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8080`,
-        `https://splitsound-signaling-default-rtdb.firebaseio.com`
+        `http://localhost:8080`
       ];
       
       for (const serverUrl of httpSignalingServers) {
