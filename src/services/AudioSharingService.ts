@@ -288,7 +288,7 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const signalingServers = [
-        `ws://localhost:8080`,
+        `wss://user:c7f99b9312b066e1d0e515713a286a01@audio-sharing-app-tunnel-6wcjyoix.devinapps.com`,
         `wss://echo.websocket.org`,
         `wss://ws.postman-echo.com/raw`,
         `wss://connect.websocket.in/v3/1/${sessionCode}`,
@@ -416,7 +416,7 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const signalingServers = [
-        `ws://localhost:8080`,
+        `wss://user:c7f99b9312b066e1d0e515713a286a01@audio-sharing-app-tunnel-6wcjyoix.devinapps.com`,
         `wss://echo.websocket.org`,
         `wss://ws.postman-echo.com/raw`,
         `wss://connect.websocket.in/v3/1/${sessionCode}`,
