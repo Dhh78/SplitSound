@@ -288,8 +288,8 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8081`,
-        `https://splitsound-signaling.loca.lt`
+        `http://localhost:8080`,
+        `https://8d3db8318c7687b1ad81f72abbcbfc8e.serveo.net`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -446,8 +446,8 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `http://localhost:8081`,
-        `https://splitsound-signaling.loca.lt`
+        `http://localhost:8080`,
+        `https://8d3db8318c7687b1ad81f72abbcbfc8e.serveo.net`
       ];
       
       for (const serverUrl of httpSignalingServers) {
