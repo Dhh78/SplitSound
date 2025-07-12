@@ -288,7 +288,7 @@ class SplitSoundCompanionService {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `https://splitsound-signaling.onrender.com`,
+        `https://splitsound-signaling.loca.lt`,
         `http://localhost:8080`
       ];
       
@@ -446,7 +446,7 @@ class SplitSoundCompanionService {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
       const httpSignalingServers = [
-        `https://splitsound-signaling.onrender.com`,
+        `https://splitsound-signaling.loca.lt`,
         `http://localhost:8080`
       ];
       
