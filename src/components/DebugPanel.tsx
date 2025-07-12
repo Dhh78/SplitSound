@@ -109,13 +109,13 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose, audioSharingS
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📱 Connected Devices ({debugInfo.connectedDevices?.length || 0})</Text>
-            {debugInfo.connectedDevices?.length === 0 ? (
+            <Text style={styles.sectionTitle}>📱 Connected Devices ({debugInfo.currentSession?.connectedDevices?.length || 0})</Text>
+            {!debugInfo.currentSession?.connectedDevices || debugInfo.currentSession.connectedDevices.length === 0 ? (
               <Text style={styles.debugText}>❌ No devices connected</Text>
             ) : (
-              debugInfo.connectedDevices?.map((device: any, index: number) => (
+              debugInfo.currentSession.connectedDevices.map((device: any, index: number) => (
                 <Text key={index} style={styles.debugText}>
-                  {device.isHost ? '🏠' : '📱'} {device.name} - {device.connected ? '✅' : '❌'}
+                  {device.isHost ? '🏠' : '📱'} {device.name || device.id} - {device.connected ? '✅' : '❌'}
                 </Text>
               ))
             )}
