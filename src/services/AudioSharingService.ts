@@ -289,7 +289,7 @@ class SplitSoundCompanionService {
       
       const httpSignalingServers = [
         `http://localhost:8080`,
-        `https://user:768a9d987985a9fa9980949d5296b187@audio-sharing-app-tunnel-mdwb5fz4.devinapps.com`
+        `https://user:9ae98e8913321b3c4f4ec80b13a5d134@split-audio-app-tunnel-urblc8c1.devinapps.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
@@ -451,7 +451,7 @@ class SplitSoundCompanionService {
       
       const httpSignalingServers = [
         `http://localhost:8080`,
-        `https://user:768a9d987985a9fa9980949d5296b187@audio-sharing-app-tunnel-mdwb5fz4.devinapps.com`
+        `https://user:9ae98e8913321b3c4f4ec80b13a5d134@split-audio-app-tunnel-urblc8c1.devinapps.com`
       ];
       
       for (const serverUrl of httpSignalingServers) {
