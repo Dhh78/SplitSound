@@ -321,56 +321,7 @@ class SplitSoundCompanionService {
         }
       }
       
-      const signalingServers = [
-        `wss://splitsound-signaling.onrender.com`
-      ];
-      
-      let connected = false;
-      this.connectionAttempts = 0;
-      
-      for (const serverUrl of signalingServers) {
-        try {
-          this.connectionAttempts++;
-          console.log(`🔗 Attempting connection ${this.connectionAttempts}/${signalingServers.length} to: ${serverUrl}`);
-          this.signalingSocket = new WebSocket(serverUrl);
-          this.webSocketUrl = serverUrl;
-          
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 8000);
-            this.signalingSocket!.onopen = () => {
-              clearTimeout(timeout);
-              connected = true;
-              console.log(`✅ Successfully connected to signaling server: ${serverUrl}`);
-              resolve(true);
-            };
-            this.signalingSocket!.onerror = (error) => {
-              clearTimeout(timeout);
-              console.error(`❌ WebSocket connection error for ${serverUrl}:`, error);
-              reject(new Error(`WebSocket connection failed: ${error}`));
-            };
-            this.signalingSocket!.onclose = (event) => {
-              clearTimeout(timeout);
-              console.warn(`🔌 WebSocket closed during connection attempt: ${event.code} - ${event.reason}`);
-              reject(new Error(`WebSocket closed: ${event.code} - ${event.reason}`));
-            };
-          });
-          
-          if (connected) break;
-        } catch (error) {
-          console.warn(`Failed to connect to ${serverUrl}:`, error);
-          this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
-          if (this.signalingSocket) {
-            this.signalingSocket.close();
-            this.signalingSocket = null;
-          }
-        }
-      }
-      
-      if (!connected) {
-        console.log('🔄 WebSocket servers failed, using localStorage signaling for local testing');
-        this.setupLocalStorageSignaling(sessionCode, true);
-        return;
-      }
+      console.log('✅ HTTP signaling configured successfully for host');
       
       this.signalingSocket!.onopen = () => {
         console.log('🔗 Signaling server connected as host');
@@ -479,56 +430,7 @@ class SplitSoundCompanionService {
         }
       }
       
-      const signalingServers = [
-        `wss://splitsound-signaling.onrender.com`
-      ];
-      
-      let connected = false;
-      this.connectionAttempts = 0;
-      
-      for (const serverUrl of signalingServers) {
-        try {
-          this.connectionAttempts++;
-          console.log(`🔗 Attempting connection ${this.connectionAttempts}/${signalingServers.length} to: ${serverUrl}`);
-          this.signalingSocket = new WebSocket(serverUrl);
-          this.webSocketUrl = serverUrl;
-          
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 8000);
-            this.signalingSocket!.onopen = () => {
-              clearTimeout(timeout);
-              connected = true;
-              console.log(`✅ Successfully connected to signaling server: ${serverUrl}`);
-              resolve(true);
-            };
-            this.signalingSocket!.onerror = (error) => {
-              clearTimeout(timeout);
-              console.error(`❌ WebSocket connection error for ${serverUrl}:`, error);
-              reject(new Error(`WebSocket connection failed: ${error}`));
-            };
-            this.signalingSocket!.onclose = (event) => {
-              clearTimeout(timeout);
-              console.warn(`🔌 WebSocket closed during connection attempt: ${event.code} - ${event.reason}`);
-              reject(new Error(`WebSocket closed: ${event.code} - ${event.reason}`));
-            };
-          });
-          
-          if (connected) break;
-        } catch (error) {
-          console.warn(`Failed to connect to ${serverUrl}:`, error);
-          this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
-          if (this.signalingSocket) {
-            this.signalingSocket.close();
-            this.signalingSocket = null;
-          }
-        }
-      }
-      
-      if (!connected) {
-        console.log('🔄 WebSocket servers failed, using localStorage signaling for local testing');
-        this.setupLocalStorageSignaling(sessionCode, false);
-        return;
-      }
+      console.log('✅ HTTP signaling configured successfully for client');
       
       this.signalingSocket!.onopen = () => {
         console.log('🔗 Connected to signaling server as client');
