@@ -79,16 +79,21 @@ class SplitSoundCompanionService {
         console.log('✅ Audio permissions granted (Mobile)');
         return true;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Audio permission request failed:', error);
-      if (error instanceof Error) {
-        if (error.name === 'NotFoundError') {
-          console.warn('⚠️ No audio input device found, continuing without audio stream for signaling test');
-        } else if (error.name === 'NotAllowedError') {
-          console.error('Audio permission denied by user. Please grant microphone access.');
-          return false;
-        }
+      this.debugErrors.push(`Audio permission error: ${error}`);
+      
+      if (error.name === 'NotAllowedError') {
+        this.debugErrors.push('User denied microphone access. Please enable in settings.');
+        console.error('Audio permission denied by user. Please grant microphone access.');
+        return false;
+      } else if (error.name === 'NotFoundError') {
+        this.debugErrors.push('No microphone found. Please connect an audio device.');
+        console.warn('⚠️ No audio input device found, continuing without audio stream for signaling test');
+      } else if (error.name === 'NotReadableError') {
+        this.debugErrors.push('Microphone is being used by another application.');
       }
+      
       console.warn('⚠️ Audio permissions failed, continuing without audio stream for signaling test');
       return true;
     }
@@ -218,12 +223,12 @@ class SplitSoundCompanionService {
           sessionCode: this.currentSession?.sessionId,
           timestamp: Date.now()
         };
-        this.signalingSocket?.send(JSON.stringify(deviceConnectedMessage));
+        this.sendSignalingMessage(deviceConnectedMessage);
         console.log('📤 Sent device connected notification:', deviceConnectedMessage);
       };
 
       this.peerConnection.onicecandidate = (event: any) => {
-        if (event.candidate && this.signalingSocket) {
+        if (event.candidate) {
           const candidateMessage = {
             type: 'ice-candidate',
             candidate: event.candidate,
@@ -231,7 +236,7 @@ class SplitSoundCompanionService {
             deviceId: this.getDeviceId(),
             timestamp: Date.now()
           };
-          this.signalingSocket.send(JSON.stringify(candidateMessage));
+          this.sendSignalingMessage(candidateMessage);
           console.log('🧊 Sent ICE candidate:', candidateMessage);
         }
       };
@@ -279,10 +284,47 @@ class SplitSoundCompanionService {
     try {
       console.log(`🚀 Starting signaling for session: ${sessionCode}`);
       
-      this.signalingSocket = new WebSocket(`wss://socketsbay.com/wss/v2/1/${sessionCode}/`);
+      const signalingServers = [
+        `wss://echo.websocket.org`,
+        `wss://ws.postman-echo.com/raw`,
+        `wss://socketsbay.com/wss/v2/1/${sessionCode}/`
+      ];
       
-      this.signalingSocket.onopen = () => {
+      let connected = false;
+      for (const serverUrl of signalingServers) {
+        try {
+          console.log(`🔗 Attempting connection to: ${serverUrl}`);
+          this.signalingSocket = new WebSocket(serverUrl);
+          
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+            this.signalingSocket!.onopen = () => {
+              clearTimeout(timeout);
+              connected = true;
+              resolve(true);
+            };
+            this.signalingSocket!.onerror = () => {
+              clearTimeout(timeout);
+              reject(new Error('WebSocket connection failed'));
+            };
+          });
+          
+          if (connected) break;
+        } catch (error) {
+          console.warn(`Failed to connect to ${serverUrl}:`, error);
+          this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
+        }
+      }
+      
+      if (!connected) {
+        console.log('🔄 WebSocket servers failed, using localStorage signaling for local testing');
+        this.setupLocalStorageSignaling(sessionCode, true);
+        return;
+      }
+      
+      this.signalingSocket!.onopen = () => {
         console.log('🔗 Signaling server connected as host');
+        this.debugErrors = this.debugErrors.filter(e => !e.includes('Signaling server'));
         const hostMessage = {
           type: 'host',
           sessionCode: sessionCode,
@@ -295,7 +337,7 @@ class SplitSoundCompanionService {
         console.log('📤 Sent host registration:', hostMessage);
       };
 
-      this.signalingSocket.onmessage = async (event) => {
+      this.signalingSocket!.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
@@ -312,12 +354,16 @@ class SplitSoundCompanionService {
         }
       };
 
-      this.signalingSocket.onerror = (error) => {
+      this.signalingSocket!.onerror = (error) => {
         console.error('❌ Signaling error:', error);
+        this.debugErrors.push(`Signaling error: ${error}`);
       };
 
-      this.signalingSocket.onclose = (event) => {
+      this.signalingSocket!.onclose = (event) => {
         console.log('🔌 Signaling connection closed:', event.code, event.reason);
+        if (event.code !== 1000) {
+          this.debugErrors.push(`Signaling closed unexpectedly: ${event.code} - ${event.reason}`);
+        }
       };
 
     } catch (error) {
@@ -329,10 +375,47 @@ class SplitSoundCompanionService {
     try {
       console.log(`🔍 Connecting to host with session: ${sessionCode}`);
       
-      this.signalingSocket = new WebSocket(`wss://socketsbay.com/wss/v2/1/${sessionCode}/`);
+      const signalingServers = [
+        `wss://echo.websocket.org`,
+        `wss://ws.postman-echo.com/raw`,
+        `wss://socketsbay.com/wss/v2/1/${sessionCode}/`
+      ];
       
-      this.signalingSocket.onopen = () => {
+      let connected = false;
+      for (const serverUrl of signalingServers) {
+        try {
+          console.log(`🔗 Attempting connection to: ${serverUrl}`);
+          this.signalingSocket = new WebSocket(serverUrl);
+          
+          await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Connection timeout')), 5000);
+            this.signalingSocket!.onopen = () => {
+              clearTimeout(timeout);
+              connected = true;
+              resolve(true);
+            };
+            this.signalingSocket!.onerror = () => {
+              clearTimeout(timeout);
+              reject(new Error('WebSocket connection failed'));
+            };
+          });
+          
+          if (connected) break;
+        } catch (error) {
+          console.warn(`Failed to connect to ${serverUrl}:`, error);
+          this.debugErrors.push(`Signaling server ${serverUrl} failed: ${error}`);
+        }
+      }
+      
+      if (!connected) {
+        console.log('🔄 WebSocket servers failed, using localStorage signaling for local testing');
+        this.setupLocalStorageSignaling(sessionCode, false);
+        return;
+      }
+      
+      this.signalingSocket!.onopen = () => {
         console.log('🔗 Connected to signaling server as client');
+        this.debugErrors = this.debugErrors.filter(e => !e.includes('Signaling server'));
         const joinMessage = {
           type: 'join',
           sessionCode: sessionCode,
@@ -345,7 +428,7 @@ class SplitSoundCompanionService {
         console.log('📤 Sent join request:', joinMessage);
       };
 
-      this.signalingSocket.onmessage = async (event) => {
+      this.signalingSocket!.onmessage = async (event) => {
         try {
           const message = JSON.parse(event.data);
           this.lastReceivedMessage = `${message.type} from ${message.deviceId || 'unknown'}`;
@@ -362,12 +445,16 @@ class SplitSoundCompanionService {
         }
       };
 
-      this.signalingSocket.onerror = (error) => {
+      this.signalingSocket!.onerror = (error) => {
         console.error('❌ Signaling error:', error);
+        this.debugErrors.push(`Signaling error: ${error}`);
       };
 
-      this.signalingSocket.onclose = (event) => {
+      this.signalingSocket!.onclose = (event) => {
         console.log('🔌 Signaling connection closed:', event.code, event.reason);
+        if (event.code !== 1000) {
+          this.debugErrors.push(`Signaling closed unexpectedly: ${event.code} - ${event.reason}`);
+        }
       };
 
     } catch (error) {
@@ -394,7 +481,7 @@ class SplitSoundCompanionService {
               deviceId: this.getDeviceId(),
               timestamp: Date.now()
             };
-            this.signalingSocket?.send(JSON.stringify(answerMessage));
+            this.sendSignalingMessage(answerMessage);
             this.lastSentMessage = `answer to ${message.deviceId || 'host'}`;
             console.log('📤 Sent answer:', answerMessage);
             
@@ -405,7 +492,7 @@ class SplitSoundCompanionService {
               sessionCode: this.currentSession?.sessionId,
               timestamp: Date.now()
             };
-            this.signalingSocket?.send(JSON.stringify(clientConnectedMessage));
+            this.sendSignalingMessage(clientConnectedMessage);
             console.log('📤 Client: Sent device connected notification:', clientConnectedMessage);
             
             this.notifyConnectionStateChange('connected');
@@ -444,7 +531,7 @@ class SplitSoundCompanionService {
               deviceId: this.getDeviceId(),
               timestamp: Date.now()
             };
-            this.signalingSocket?.send(JSON.stringify(offerMessage));
+            this.sendSignalingMessage(offerMessage);
             this.lastSentMessage = `offer to ${message.deviceId || 'client'}`;
             console.log('📤 Sent offer:', offerMessage);
           }
@@ -567,6 +654,13 @@ class SplitSoundCompanionService {
   }
 
   getDebugInfo(): any {
+    const webSocketState = this.signalingSocket?.readyState;
+    let webSocketStateText = 'Unknown';
+    if (webSocketState === WebSocket.CONNECTING) webSocketStateText = 'Connecting';
+    else if (webSocketState === WebSocket.OPEN) webSocketStateText = 'Open';
+    else if (webSocketState === WebSocket.CLOSING) webSocketStateText = 'Closing';
+    else if (webSocketState === WebSocket.CLOSED) webSocketStateText = 'Closed';
+
     return {
       isHost: this.isHost,
       isConnected: this.isConnected,
@@ -581,13 +675,51 @@ class SplitSoundCompanionService {
       hasAudioStream: !!this.audioStream,
       audioTrackCount: this.audioStream?.getTracks().length || 0,
       signalingConnected: this.signalingSocket?.readyState === WebSocket.OPEN,
+      webSocketState: webSocketStateText,
       syncOffset: this.syncOffset,
       lastSentMessage: this.lastSentMessage,
       lastReceivedMessage: this.lastReceivedMessage,
       messagesSent: this.messagesSent || 0,
       messagesReceived: this.messagesReceived || 0,
-      errors: this.debugErrors || []
+      errors: this.debugErrors || [],
+      timestamp: new Date().toISOString()
     };
+  }
+
+  exportDebugLogs(): string {
+    const debugInfo = this.getDebugInfo();
+    const logData = {
+      timestamp: debugInfo.timestamp,
+      deviceInfo: {
+        role: debugInfo.isHost ? 'Host' : 'Client',
+        deviceId: debugInfo.deviceId,
+        sessionId: debugInfo.sessionId,
+        connected: debugInfo.isConnected
+      },
+      webrtcStatus: {
+        peerConnectionState: debugInfo.peerConnectionState,
+        signalingState: debugInfo.signalingState,
+        iceConnectionState: debugInfo.iceConnectionState,
+        iceGatheringState: debugInfo.iceGatheringState,
+        webSocketState: debugInfo.webSocketState
+      },
+      mediaStatus: {
+        hasAudioStream: debugInfo.hasAudioStream,
+        audioTrackCount: debugInfo.audioTrackCount,
+        syncOffset: debugInfo.syncOffset
+      },
+      connectedDevices: debugInfo.connectedDevices,
+      signalingMessages: {
+        lastSent: debugInfo.lastSentMessage,
+        lastReceived: debugInfo.lastReceivedMessage,
+        messagesSent: debugInfo.messagesSent,
+        messagesReceived: debugInfo.messagesReceived
+      },
+      errors: debugInfo.errors,
+      fullSession: debugInfo.currentSession
+    };
+    
+    return JSON.stringify(logData, null, 2);
   }
 
   setSyncOffset(offset: number): void {
@@ -601,6 +733,141 @@ class SplitSoundCompanionService {
   getCurrentSession(): AudioSession | null {
     return this.currentSession;
   }
+
+  private setupLocalStorageSignaling(sessionCode: string, isHost: boolean): void {
+    console.log(`🔗 Using localStorage signaling for session: ${sessionCode} as ${isHost ? 'host' : 'client'}`);
+    
+    const storageKey = `splitsound_session_${sessionCode}`;
+    const deviceId = this.getDeviceId();
+    
+    if (isHost) {
+      const hostMessage = {
+        type: 'host',
+        sessionCode: sessionCode,
+        deviceId: deviceId,
+        timestamp: Date.now()
+      };
+      
+      localStorage.setItem(storageKey, JSON.stringify({
+        host: hostMessage,
+        clients: [],
+        messages: [hostMessage]
+      }));
+      
+      console.log('🔗 Host session initialized in localStorage');
+      this.lastSentMessage = `${hostMessage.type} from ${deviceId}`;
+      this.messagesSent++;
+      
+      this.startLocalStoragePolling(storageKey, isHost);
+    } else {
+      const joinMessage = {
+        type: 'join',
+        sessionCode: sessionCode,
+        deviceId: deviceId,
+        timestamp: Date.now()
+      };
+      
+      const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      if (sessionData.host) {
+        sessionData.clients = sessionData.clients || [];
+        sessionData.clients.push(joinMessage);
+        sessionData.messages = sessionData.messages || [];
+        sessionData.messages.push(joinMessage);
+        
+        localStorage.setItem(storageKey, JSON.stringify(sessionData));
+        
+        console.log('🔗 Client joined session in localStorage');
+        this.lastSentMessage = `${joinMessage.type} from ${deviceId}`;
+        this.messagesSent++;
+        
+        this.addConnectedDevice(sessionData.host.deviceId || 'Host Device', true);
+        
+        this.sendSignalingMessage(joinMessage);
+        
+        this.startLocalStoragePolling(storageKey, isHost);
+      } else {
+        throw new Error('Host session not found in localStorage');
+      }
+    }
+  }
+
+  private startLocalStoragePolling(storageKey: string, isHost: boolean): void {
+    const pollInterval = setInterval(() => {
+      try {
+        const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+        const messages = sessionData.messages || [];
+        
+        messages.forEach((message: any) => {
+          if (message.deviceId !== this.getDeviceId()) {
+            if (!this.processedMessages.has(message.timestamp)) {
+              this.processedMessages.add(message.timestamp);
+              this.lastReceivedMessage = `${message.type} from ${message.deviceId}`;
+              this.messagesReceived++;
+              this.handleSignalingMessage(message);
+            }
+          }
+        });
+        
+        if (!this.currentSession) {
+          clearInterval(pollInterval);
+        }
+      } catch (error) {
+        console.error('localStorage polling error:', error);
+        clearInterval(pollInterval);
+      }
+    }, 1000);
+  }
+
+  private processedMessages = new Set<number>();
+  
+  private sendSignalingMessage(message: any): void {
+    if (this.signalingSocket && this.signalingSocket.readyState === WebSocket.OPEN) {
+      try {
+        this.signalingSocket.send(JSON.stringify(message));
+        this.messagesSent++;
+        console.log('📤 Sent message via WebSocket:', message);
+        this.lastSentMessage = `${message.type} from ${this.getDeviceId()}`;
+      } catch (error) {
+        console.error('WebSocket send error:', error);
+        this.debugErrors.push(`WebSocket send error: ${error}`);
+        this.fallbackToLocalStorage(message);
+      }
+    } else if (this.currentSession?.sessionId) {
+      this.fallbackToLocalStorage(message);
+    } else {
+      console.error('No signaling method available');
+      this.debugErrors.push('No signaling method available for message: ' + message.type);
+    }
+  }
+
+  private fallbackToLocalStorage(message: any): void {
+    if (!this.currentSession?.sessionId) return;
+    
+    const storageKey = `splitsound_session_${this.currentSession.sessionId}`;
+    try {
+      const sessionData = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      sessionData.messages = sessionData.messages || [];
+      
+      const messageWithTimestamp = {
+        ...message,
+        timestamp: Date.now(),
+        deviceId: this.getDeviceId()
+      };
+      
+      sessionData.messages.push(messageWithTimestamp);
+      localStorage.setItem(storageKey, JSON.stringify(sessionData));
+      this.messagesSent++;
+      console.log('📤 Sent message via localStorage fallback:', messageWithTimestamp);
+      this.lastSentMessage = `${message.type} from ${this.getDeviceId()}`;
+      
+      if (['offer', 'answer', 'ice-candidate'].includes(message.type)) {
+        console.log('🔄 WebRTC message stored for localStorage signaling');
+      }
+    } catch (error) {
+      console.error('Failed to send message via localStorage:', error);
+      this.debugErrors.push(`localStorage send error: ${error}`);
+    }
+  }
 }
 
-export default new SplitSoundCompanionService();
+export default SplitSoundCompanionService;

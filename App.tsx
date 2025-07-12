@@ -7,11 +7,12 @@ import SyncAdjustment from './src/components/SyncAdjustment';
 import QRCodeGenerator from './src/components/QRCodeGenerator';
 import QRCodeScanner from './src/components/QRCodeScanner';
 import DebugPanel from './src/components/DebugPanel';
-import AudioSharingService from './src/services/AudioSharingService';
+import AudioSharingServiceClass from './src/services/AudioSharingService';
 import { AppState, ConnectionStatus } from './src/types';
 import i18n from './src/utils/i18n';
 
 export default function App() {
+  const [audioSharingService] = useState(() => new AudioSharingServiceClass());
   const [appState, setAppState] = useState<AppState>({
     connectionStatus: {
       isHost: false,
@@ -33,7 +34,7 @@ export default function App() {
   }, []);
 
   const updateConnectionStatus = () => {
-    const status = AudioSharingService.getConnectionStatus();
+    const status = audioSharingService.getConnectionStatus();
     setAppState(prev => ({
       ...prev,
       connectionStatus: status,
@@ -44,7 +45,7 @@ export default function App() {
     setAppState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const result = await AudioSharingService.startHosting();
+      const result = await audioSharingService.startHosting();
       if (result.success) {
         setAppState(prev => ({
           ...prev,
@@ -77,7 +78,7 @@ export default function App() {
     setAppState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const result = await AudioSharingService.joinSession(sessionCode);
+      const result = await audioSharingService.joinSession(sessionCode);
       if (result.success) {
         setAppState(prev => ({
           ...prev,
@@ -109,7 +110,7 @@ export default function App() {
     setAppState(prev => ({ ...prev, isLoading: true }));
     
     try {
-      await AudioSharingService.stopSession();
+      await audioSharingService.stopSession();
       setAppState(prev => ({
         ...prev,
         mode: 'idle',
@@ -131,7 +132,7 @@ export default function App() {
   };
 
   const handleSyncChange = (offset: number) => {
-    AudioSharingService.setSyncOffset(offset);
+    audioSharingService.setSyncOffset(offset);
     updateConnectionStatus();
   };
 
@@ -227,6 +228,7 @@ export default function App() {
       <DebugPanel 
         visible={showDebugPanel}
         onClose={() => setShowDebugPanel(false)}
+        audioSharingService={audioSharingService}
       />
     </SafeAreaView>
   );

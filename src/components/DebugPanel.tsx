@@ -1,24 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import AudioSharingService from '../services/AudioSharingService';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 
 interface DebugPanelProps {
   visible: boolean;
   onClose: () => void;
+  audioSharingService: any;
 }
 
-const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
+const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose, audioSharingService }) => {
   const [debugInfo, setDebugInfo] = useState<any>({});
 
   useEffect(() => {
-    if (visible) {
+    if (visible && audioSharingService) {
       const interval = setInterval(() => {
-        setDebugInfo(AudioSharingService.getDebugInfo());
+        setDebugInfo(audioSharingService.getDebugInfo());
       }, 1000);
 
       return () => clearInterval(interval);
     }
-  }, [visible]);
+  }, [visible, audioSharingService]);
+
+  const handleCopyLogs = async () => {
+    try {
+      const logs = audioSharingService ? audioSharingService.exportDebugLogs() : 'No service available';
+      if (Platform.OS === 'web') {
+        await (navigator as any).clipboard.writeText(logs);
+      } else {
+        console.log('Debug logs:', logs);
+      }
+      Alert.alert('Success', 'Debug logs copied to clipboard');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to copy logs to clipboard');
+      console.error('Copy logs error:', error);
+    }
+  };
+
+  const handleSaveLogs = async () => {
+    try {
+      const logs = audioSharingService ? audioSharingService.exportDebugLogs() : 'No service available';
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `splitsound-debug-${timestamp}.json`;
+      
+      if (Platform.OS === 'web') {
+        const blob = new Blob([logs], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        Alert.alert('Success', 'Debug logs saved to downloads');
+      } else {
+        console.log('Debug logs for mobile:', logs);
+        Alert.alert('Success', 'Debug logs printed to console');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save debug logs');
+      console.error('Save logs error:', error);
+    }
+  };
 
   if (!visible) return null;
 
@@ -27,9 +69,17 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
       <View style={styles.panel}>
         <View style={styles.header}>
           <Text style={styles.title}>🔧 Debug Panel</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeText}>✕</Text>
-          </TouchableOpacity>
+          <View style={styles.headerButtons}>
+            <TouchableOpacity onPress={handleCopyLogs} style={styles.exportButton}>
+              <Text style={styles.exportText}>📋</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSaveLogs} style={styles.exportButton}>
+              <Text style={styles.exportText}>💾</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
         <ScrollView style={styles.content}>
@@ -53,6 +103,7 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
             <Text style={styles.sectionTitle}>🎵 Media & Signaling</Text>
             <Text style={styles.debugText}>Audio Stream: {debugInfo.hasAudioStream ? '✅ Active' : '❌ None'}</Text>
             <Text style={styles.debugText}>Signaling Socket: {debugInfo.signalingConnected ? '✅ Connected' : '❌ Disconnected'}</Text>
+            <Text style={styles.debugText}>WebSocket State: {debugInfo.webSocketState || 'Unknown'}</Text>
             <Text style={styles.debugText}>Sync Offset: {debugInfo.syncOffset}ms</Text>
             <Text style={styles.debugText}>Audio Tracks: {debugInfo.audioTrackCount || 0}</Text>
           </View>
@@ -75,11 +126,12 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ visible, onClose }) => {
             <Text style={styles.debugText}>Last Sent: {debugInfo.lastSentMessage || '❌ None'}</Text>
             <Text style={styles.debugText}>Last Received: {debugInfo.lastReceivedMessage || '❌ None'}</Text>
             <Text style={styles.debugText}>Message Count: Sent {debugInfo.messagesSent || 0}, Received {debugInfo.messagesReceived || 0}</Text>
+            <Text style={styles.debugText}>Timestamp: {debugInfo.timestamp ? new Date(debugInfo.timestamp).toLocaleTimeString() : 'Unknown'}</Text>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>⚠️ Errors & Warnings</Text>
-            {debugInfo.errors?.length > 0 ? (
+            {debugInfo.errors && debugInfo.errors.length > 0 ? (
               debugInfo.errors.map((error: string, index: number) => (
                 <Text key={index} style={[styles.debugText, styles.errorText]}>
                   ❌ {error}
@@ -126,6 +178,22 @@ const styles = StyleSheet.create({
     padding: 15,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exportButton: {
+    padding: 8,
+    marginRight: 8,
+    backgroundColor: '#667eea',
+    borderRadius: 6,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  exportText: {
+    fontSize: 16,
+    color: '#fff',
   },
   title: {
     fontSize: 18,
