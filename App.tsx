@@ -159,6 +159,7 @@ export default function App() {
             </View>
             <Text style={styles.title}>SplitSound</Text>
             <Text style={styles.subtitle}>Companion</Text>
+            <Text style={styles.version}>Version 1</Text>
           </View>
           <TouchableOpacity 
             style={styles.debugButton}
@@ -298,6 +299,13 @@ const styles = StyleSheet.create({
     color: '#667eea',
     marginTop: -4,
     letterSpacing: 1,
+  },
+  version: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#94a3b8',
+    marginTop: 4,
+    letterSpacing: 0.5,
   },
   content: {
     flex: 1,
